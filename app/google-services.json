@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "126740915282",
+    "project_id": "himalayanwheelsandroidapp",
+    "storage_bucket": "himalayanwheelsandroidapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:126740915282:android:5b9f1295c16d57876ceb8b",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9p2gDigsoF8G2bKk10UaCqOBGBNOlqq8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

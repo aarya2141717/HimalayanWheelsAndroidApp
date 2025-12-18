@@ -13,3 +13,16 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Android Studio
+.idea/
+.gradle/
+build/
+
+# OS files
+desktop.ini
+.DS_Store
+
+# Local config
+local.properties
+
