@@ -3,6 +3,7 @@ package com.example.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,20 +21,37 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppTheme
+import com.example.app.viewmodel.UserViewModel
 
 class DashboardActivity : ComponentActivity() {
+    private val viewModel: UserViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             AppTheme {
-                DashboardScreen()
+                var userName by remember { mutableStateOf("User") }
+                
+                LaunchedEffect(Unit) {
+                    viewModel.getUserDetails { user ->
+                        if (user != null) {
+                            // If name is present, use it.
+                            // If name is empty, try using email prefix or fallback to "User"
+                            userName = user.name.ifEmpty { 
+                                user.email.substringBefore("@").ifEmpty { "User" } 
+                            }
+                        }
+                    }
+                }
+
+                DashboardScreen(userName = userName)
             }
         }
     }
 }
 
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(userName: String) {
 
     Scaffold(
         bottomBar = { BottomNavBar() },
@@ -47,7 +65,7 @@ fun DashboardScreen() {
                 .padding(16.dp)
         ) {
 
-            item { TopBar() }
+            item { TopBar(userName) }
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
 
@@ -95,24 +113,24 @@ fun DashboardScreen() {
 /* -------------------- TOP BAR -------------------- */
 
 @Composable
-fun TopBar() {
+fun TopBar(userName: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
-            painter = painterResource(R.drawable.profile),
+            painter = painterResource(R.drawable.baseline_account_circle_24),
             contentDescription = null,
             modifier = Modifier
                 .size(44.dp)
-                .background(Color.LightGray, CircleShape)
+                .background(Color.Transparent, CircleShape)
         )
 
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text("Welcome back", color = Color.Gray, fontSize = 12.sp)
-            Text("Aarya Thapa", fontWeight = FontWeight.Bold)
+            Text(userName, fontWeight = FontWeight.Bold)
         }
 
         Icon(
@@ -292,4 +310,3 @@ fun BottomNavBar() {
         )
     }
 }
-

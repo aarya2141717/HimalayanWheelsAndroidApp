@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -78,18 +80,19 @@ fun LoginScreen(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.weight(1f))
 
         Box(
             modifier = Modifier
-                .size(120.dp)
-                .background(Color(0xFFEDEDED), CircleShape),
+                .size(150.dp) // Adjusted logo size
+                .background(Color(0xFFEFE6DD), CircleShape), // Add background circle if needed to match image style or remove if logo has it
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(R.drawable.logo),
                 contentDescription = "Logo",
-                modifier = Modifier.size(80.dp)
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop // Or Fit depending on the logo
             )
         }
 
@@ -97,8 +100,9 @@ fun LoginScreen(
 
         Text(
             text = "Adventure Awaits",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1A1C24)
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -111,35 +115,60 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            placeholder = { Text("Enter your email") },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("Email", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                placeholder = { Text("Enter your email") },
+                modifier = Modifier
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Color.White,
+                    unfocusedBorderColor = Color(0xFFE0E0E0),
+                    focusedBorderColor = Color(0xFF5C7CFA)
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                singleLine = true
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            placeholder = { Text("Enter your password") },
-            label = { Text("Password") },
-            trailingIcon = {
-                IconButton(onClick = { showPassword = !showPassword }) {
-                    Icon(
-                        painter = painterResource(
-                            if (showPassword) R.drawable.baseline_visibility_24 else R.drawable.baseline_visibility_off_24
-                        ),
-                        contentDescription = "Toggle Password"
-                    )
-                }
-            },
-            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("Password", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                placeholder = { Text("Enter your password") },
+                modifier = Modifier
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Color.White,
+                    unfocusedBorderColor = Color(0xFFE0E0E0),
+                    focusedBorderColor = Color(0xFF5C7CFA)
+                ),
+                trailingIcon = {
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(
+                            painter = painterResource(
+                                if (showPassword) R.drawable.baseline_visibility_24 else R.drawable.baseline_visibility_off_24
+                            ),
+                            contentDescription = "Toggle Password",
+                            tint = Color.Gray
+                        )
+                    }
+                },
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                singleLine = true
+            )
+        }
 
         TextButton(
             onClick = onForgotPasswordClick,
@@ -148,11 +177,12 @@ fun LoginScreen(
             Text(
                 text = "Forgot Password?",
                 color = Color(0xFFFF9800),
-                fontSize = 13.sp
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = { onLoginClick(email, password) },
@@ -162,7 +192,7 @@ fun LoginScreen(
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C7CFA))
         ) {
-            Text("Login", fontSize = 16.sp)
+            Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -171,9 +201,13 @@ fun LoginScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Divider(modifier = Modifier.weight(1f))
-            Text("  or  ", color = Color.Gray)
-            Divider(modifier = Modifier.weight(1f))
+            Divider(modifier = Modifier.weight(1f), color = Color(0xFFE0E0E0))
+            Text(
+                "  or  ",
+                color = Color.Gray,
+                fontSize = 14.sp
+            )
+            Divider(modifier = Modifier.weight(1f), color = Color(0xFFE0E0E0))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -183,7 +217,9 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0))
         ) {
             Image(
                 painter = painterResource(R.drawable.googleicon),
@@ -191,20 +227,23 @@ fun LoginScreen(
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Continue with Google")
+            Text("Continue with Google", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.weight(1f))
 
-        Row {
-            Text("Don't have an account? ")
-            TextButton(onClick = onSignupClick) {
-                Text(
-                    text = "SignUp",
-                    color = Color(0xFFFF9800),
-                    fontWeight = FontWeight.Bold
-                )
-            }
+        Row(
+            modifier = Modifier.padding(bottom = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Don't have an account? ", color = Color.Gray, fontSize = 14.sp)
+            Text(
+                text = "Sign Up",
+                color = Color(0xFFFF9800),
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                modifier = Modifier.clickable() { onSignupClick() }
+            )
         }
     }
 }

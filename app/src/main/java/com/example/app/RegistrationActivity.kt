@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -30,18 +31,20 @@ class RegistrationActivity : ComponentActivity() {
             AppTheme {
                 RegistrationScreen(
                     onBackClick = { finish() },
-                    onRegisterClick = { email, password ->
-                        if (email.isNotEmpty() && password.isNotEmpty()) {
-                            viewModel.register(email, password) { success, message ->
+                    onRegisterClick = { name, email, password, onResult ->
+                        if (name.isNotEmpty() && email.isNotEmpty() && password.isNotEmpty()) {
+                            viewModel.register(email, password, name) { success, message ->
+                                onResult() // Reset loading state
                                 if (success) {
                                     Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                                    finish() // Or navigate to dashboard
+                                    finish() // Navigate to dashboard or login
                                 } else {
                                     Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
                                 }
                             }
                         } else {
-                            Toast.makeText(this, "Please enter email and password", Toast.LENGTH_SHORT).show()
+                            onResult()
+                            Toast.makeText(this, "Please enter all fields", Toast.LENGTH_SHORT).show()
                         }
                     }
                 )
@@ -54,11 +57,13 @@ class RegistrationActivity : ComponentActivity() {
 @Composable
 fun RegistrationScreen(
     onBackClick: () -> Unit,
-    onRegisterClick: (String, String) -> Unit
+    onRegisterClick: (String, String, String, () -> Unit) -> Unit
 ) {
+    var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -93,13 +98,33 @@ fun RegistrationScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Full Name") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text
+                ),
+                enabled = !isLoading
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("Email") },
                 modifier = Modifier.fillMaxWidth(),
+                trailingIcon = {
+                    Icon(
+                        painter = painterResource(R.drawable.baseline_email_24),
+                        contentDescription = "Email Icon"
+                    )
+                },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email
-                )
+                ),
+                enabled = !isLoading
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -124,19 +149,35 @@ fun RegistrationScreen(
                 visualTransformation =
                     if (showPassword) VisualTransformation.None
                     else PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { onRegisterClick(email, password) },
+                onClick = {
+                    if (!isLoading) {
+                        isLoading = true
+                        onRegisterClick(name, email, password) {
+                            isLoading = false
+                        }
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
-                shape = RoundedCornerShape(30.dp)
+                shape = RoundedCornerShape(30.dp),
+                enabled = !isLoading
             ) {
-                Text("Register")
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White
+                    )
+                } else {
+                    Text("Register")
+                }
             }
         }
     }

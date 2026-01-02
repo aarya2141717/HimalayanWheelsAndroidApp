@@ -12,24 +12,33 @@ class UserViewModel : ViewModel() {
         repo.login(email, password, callback)
     }
 
-    fun register(email: String, password: String, callback: (Boolean, String) -> Unit) {
-        repo.register(email, password) { success, message, userId ->
+    fun register(email: String, password: String, name: String, callback: (Boolean, String) -> Unit) {
+        repo.register(email, password, name) { success, message, userId ->
+            // Immediately forward the result to the UI
+            callback(success, message)
+            
             if (success && userId != null) {
-                val user = UserModel(userId, email)
-                repo.addUserToDatabase(userId, user) { dbSuccess, dbMessage ->
-                     if (dbSuccess) {
-                         callback(true, "Registration Successful")
-                     } else {
-                         callback(false, dbMessage)
-                     }
+                // If registration was successful, start a background task to save user details to the database.
+                // We do NOT block the UI waiting for this.
+                val user = UserModel(userId, email, name)
+                repo.addUserToDatabase(userId, user) { _, _ -> 
+                    // This callback is now purely for logging/debugging if needed
+                    // The user has already been welcomed.
                 }
-            } else {
-                callback(false, message)
             }
         }
     }
 
     fun forgotPassword(email: String, callback: (Boolean, String) -> Unit) {
         repo.forgotPassword(email, callback)
+    }
+
+    fun getUserDetails(callback: (UserModel?) -> Unit) {
+        val currentUser = repo.getCurrentUser()
+        if (currentUser != null) {
+            repo.getUserDetails(currentUser.uid, callback)
+        } else {
+            callback(null)
+        }
     }
 }
