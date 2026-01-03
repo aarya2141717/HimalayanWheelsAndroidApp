@@ -173,7 +173,7 @@ fun StatsGrid() {
                 value = "5",
                 percent = "5", // Using as a badge count
                 isBadge = true,
-                iconRes = R.drawable.baseline_visibility_24, // Replace with request/clipboard icon
+                iconRes = R.drawable.baseline_request_quote_24, // Replace with request/clipboard icon
                 iconBgColor = Color(0xFFFFEBEE),
                 iconTint = Color(0xFFC62828),
                 percentColor = Color(0xFFD32F2F)
@@ -432,13 +432,13 @@ fun AdminBottomNavBar() {
         NavigationBarItem(
             selected = false,
             onClick = {},
-            icon = { Icon(painterResource(R.drawable.baseline_car_rental_24), null) }, // Fleet
+            icon = { Icon(painterResource(R.drawable.baseline_directions_car_24), null) }, // Fleet
             label = { Text("Fleet") }
         )
         NavigationBarItem(
             selected = false,
             onClick = {},
-            icon = { Icon(painterResource(R.drawable.baseline_account_circle_24), null) }, // Users
+            icon = { Icon(painterResource(R.drawable.baseline_group_24), null) }, // Users
             label = { Text("Users") }
         )
         NavigationBarItem(
