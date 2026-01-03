@@ -39,12 +39,17 @@ class SignUpActivity : ComponentActivity() {
                 LoginScreen(
                     onLoginClick = { email, password ->
                         if (email.isNotEmpty() && password.isNotEmpty()) {
-                            viewModel.login(email, password) { success, message ->
-                                if (success) {
-                                    startActivity(Intent(this, DashboardActivity::class.java))
-                                    finish()
-                                } else {
-                                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                            if (email == "admin@himalayanwheels.com" && password == "admin123") {
+                                startActivity(Intent(this, AdminDashboardActivity::class.java))
+                                finish()
+                            } else {
+                                viewModel.login(email, password) { success, message ->
+                                    if (success) {
+                                        startActivity(Intent(this, DashboardActivity::class.java))
+                                        finish()
+                                    } else {
+                                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             }
                         } else {
@@ -242,7 +247,7 @@ fun LoginScreen(
                 color = Color(0xFFFF9800),
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
-                modifier = Modifier.clickable() { onSignupClick() }
+                modifier = Modifier.clickable { onSignupClick() }
             )
         }
     }

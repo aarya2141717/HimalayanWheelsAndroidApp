@@ -16,37 +16,24 @@
         android:theme="@style/Theme.App">
         <activity
             android:name=".DashboardActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="@string/title_activity_dashboard"
-            android:theme="@style/Theme.App">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.App" />
+        <activity
+            android:name=".AdminDashboardActivity"
+            android:exported="false"
+            android:label="Admin Dashboard"
+            android:theme="@style/Theme.App" />
         <activity
             android:name=".RegistrationActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="@string/title_activity_registration"
-            android:theme="@style/Theme.App">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.App" />
         <activity
             android:name=".LoginActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="@string/title_activity_login"
-            android:theme="@style/Theme.App">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.App" />
         <activity
             android:name=".SignUpActivity"
             android:exported="true"
@@ -60,7 +47,7 @@
         </activity>
         <activity
             android:name=".ForgotPasswordActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="Forgot Password"
             android:theme="@style/Theme.App" />
         <activity
