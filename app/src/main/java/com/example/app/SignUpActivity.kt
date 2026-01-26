@@ -31,34 +31,59 @@ import com.example.app.viewmodel.UserViewModel
 
 class SignUpActivity : ComponentActivity() {
     private val viewModel: UserViewModel by viewModels()
+    private  val ADMIN_EMAIL = "admin@himalayanwheels.com"
+    private  val ADMIN_PASSWORD = "admin123"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             AppTheme {
                 LoginScreen(
-                    onLoginClick = { email, password ->
-                        if (email.isNotEmpty() && password.isNotEmpty()) {
-                            if (email == "admin@himalayanwheels.com" && password == "admin123") {
-                                startActivity(Intent(this, AdminDashboardActivity::class.java))
-                                finish()
-                            } else {
-                                viewModel.login(email, password) { success, message ->
-                                    if (success) {
+                    onLoginClick = { email, password, onResult ->
+
+                        if (email.isBlank() || password.isBlank()) {
+                            onResult()
+                            Toast.makeText(
+                                this,
+                                "Please enter email and password",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@LoginScreen
+                        }
+
+                        // 👑 ADMIN SHORTCUT
+                        if (email == ADMIN_EMAIL && password == ADMIN_PASSWORD) {
+                            startActivity(
+                                Intent(this, AdminDashboardActivity::class.java)
+                            )
+                            finish()
+                            onResult()
+                            return@LoginScreen
+                        }
+
+                        // 🔐 FIREBASE LOGIN
+                        viewModel.login(email, password) { success, message, role ->
+                            onResult()
+                            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+
+                            if (success) {
+                                when (role) {
+                                    "ADMIN" ->
+                                        startActivity(Intent(this, AdminDashboardActivity::class.java))
+                                    "COMPANY" ->
+                                        startActivity(Intent(this, CompanyDashboardActivity::class.java))
+                                    else ->
                                         startActivity(Intent(this, DashboardActivity::class.java))
-                                        finish()
-                                    } else {
-                                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                                    }
                                 }
+                                finish()
                             }
-                        } else {
-                            Toast.makeText(this, "Please enter email and password", Toast.LENGTH_SHORT).show()
                         }
                     },
+
                     onSignupClick = {
                         startActivity(Intent(this, RegistrationActivity::class.java))
                     },
+
                     onForgotPasswordClick = {
                         startActivity(Intent(this, ForgotPasswordActivity::class.java))
                     }
@@ -70,13 +95,14 @@ class SignUpActivity : ComponentActivity() {
 
 @Composable
 fun LoginScreen(
-    onLoginClick: (String, String) -> Unit,
+    onLoginClick: (String, String, () -> Unit) -> Unit,
     onSignupClick: () -> Unit,
     onForgotPasswordClick: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -137,7 +163,8 @@ fun LoginScreen(
                     focusedBorderColor = Color(0xFF5C7CFA)
                 ),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true
+                singleLine = true,
+                enabled = !isLoading
             )
         }
 
@@ -171,13 +198,15 @@ fun LoginScreen(
                     }
                 },
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                singleLine = true
+                singleLine = true,
+                enabled = !isLoading
             )
         }
 
         TextButton(
             onClick = onForgotPasswordClick,
-            modifier = Modifier.align(Alignment.End)
+            modifier = Modifier.align(Alignment.End),
+            enabled = !isLoading
         ) {
             Text(
                 text = "Forgot Password?",
@@ -190,14 +219,29 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = { onLoginClick(email, password) },
+            onClick = {
+                if (!isLoading) {
+                    isLoading = true
+                    onLoginClick(email, password) {
+                        isLoading = false
+                    }
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C7CFA))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C7CFA)),
+            enabled = !isLoading
         ) {
-            Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = Color.White
+                )
+            } else {
+                Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -224,7 +268,8 @@ fun LoginScreen(
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0))
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0)),
+            enabled = !isLoading
         ) {
             Image(
                 painter = painterResource(R.drawable.googleicon),
@@ -247,7 +292,9 @@ fun LoginScreen(
                 color = Color(0xFFFF9800),
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
-                modifier = Modifier.clickable { onSignupClick() }
+                modifier = Modifier.clickable { 
+                    if (!isLoading) onSignupClick() 
+                }
             )
         }
     }

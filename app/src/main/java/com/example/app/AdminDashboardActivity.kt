@@ -1,5 +1,6 @@
 package com.example.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,10 +40,14 @@ class AdminDashboardActivity : ComponentActivity() {
 
 @Composable
 fun AdminDashboardScreen() {
+    val context = LocalContext.current
+    
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { /* TODO: Add Item */ },
+                onClick = { 
+                    context.startActivity(Intent(context, AddProductActivity::class.java))
+                },
                 containerColor = Color(0xFF2F4CFA),
                 shape = CircleShape
             ) {
@@ -173,7 +179,7 @@ fun StatsGrid() {
                 value = "5",
                 percent = "5", // Using as a badge count
                 isBadge = true,
-                iconRes = R.drawable.baseline_request_quote_24, // Replace with request/clipboard icon
+                iconRes = R.drawable.baseline_visibility_24, // Replace with request/clipboard icon
                 iconBgColor = Color(0xFFFFEBEE),
                 iconTint = Color(0xFFC62828),
                 percentColor = Color(0xFFD32F2F)
@@ -432,19 +438,19 @@ fun AdminBottomNavBar() {
         NavigationBarItem(
             selected = false,
             onClick = {},
-            icon = { Icon(painterResource(R.drawable.baseline_directions_car_24), null) }, // Fleet
+            icon = { Icon(painterResource(R.drawable.baseline_car_rental_24), null) }, // Fleet
             label = { Text("Fleet") }
         )
         NavigationBarItem(
             selected = false,
             onClick = {},
-            icon = { Icon(painterResource(R.drawable.baseline_group_24), null) }, // Users
+            icon = { Icon(painterResource(R.drawable.baseline_account_circle_24), null) }, // Users
             label = { Text("Users") }
         )
         NavigationBarItem(
             selected = false,
             onClick = {},
-            icon = { Icon(painterResource(R.drawable.baseline_settings_24), null) }, // Settings (Using Lock as placeholder for settings if unavailable)
+            icon = { Icon(painterResource(R.drawable.baseline_lock_24), null) }, // Settings (Using Lock as placeholder for settings if unavailable)
             label = { Text("Settings") }
         )
     }
