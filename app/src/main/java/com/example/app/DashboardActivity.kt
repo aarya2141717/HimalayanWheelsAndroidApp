@@ -1,11 +1,13 @@
 package com.example.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,6 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppTheme
 import com.example.app.viewmodel.UserViewModel
+import com.google.firebase.firestore.FirebaseFirestore
+import coil.compose.AsyncImage
+import com.example.app.model.VehicleModel
 
 class DashboardActivity : ComponentActivity() {
     private val viewModel: UserViewModel by viewModels()
@@ -31,30 +36,42 @@ class DashboardActivity : ComponentActivity() {
         setContent {
             AppTheme {
                 var userName by remember { mutableStateOf("User") }
-                
+                var vehicles by remember { mutableStateOf(listOf<VehicleModel>()) }
+
                 LaunchedEffect(Unit) {
-                    viewModel.getUserDetails { user ->
-                        if (user != null) {
-                            // If name is present, use it.
-                            // If name is empty, try using email prefix or fallback to "User"
-                            userName = user.name.ifEmpty { 
-                                user.email.substringBefore("@").ifEmpty { "User" } 
-                            }
-                        }
+                    viewModel.fetchCurrentUserName { name ->
+                        if (!name.isNullOrBlank()) userName = name
                     }
+                    // fetch featured vehicles from Firestore
+                    val db = FirebaseFirestore.getInstance()
+                    db.collection("vehicles").limit(10).get()
+                        .addOnSuccessListener { snap ->
+                            vehicles = snap.documents.mapNotNull { it.toObject(VehicleModel::class.java)?.copy(id = it.id) }
+                        }
                 }
 
-                DashboardScreen(userName = userName)
+                DashboardScreen(userName = userName, vehicles = vehicles, onProfileClick = {
+                    startActivity(Intent(this, ProfileActivity::class.java))
+                }, onBookingsClick = {
+                    startActivity(Intent(this, BookingsActivity::class.java))
+                }, onSavedClick = {
+                    startActivity(Intent(this, SavedActivity::class.java))
+                }, onVehicleClick = { vehicle ->
+                    val i = Intent(this, VehicleDetailActivity::class.java)
+                    i.putExtra("vehicleName", vehicle.name)
+                    i.putExtra("vehicleImageUrl", vehicle.imageUrl)
+                    startActivity(i)
+                })
             }
         }
     }
 }
 
 @Composable
-fun DashboardScreen(userName: String) {
+fun DashboardScreen(userName: String, vehicles: List<VehicleModel>, onProfileClick: () -> Unit, onBookingsClick: () -> Unit, onSavedClick: () -> Unit, onVehicleClick: (VehicleModel) -> Unit) {
 
     Scaffold(
-        bottomBar = { BottomNavBar() },
+        bottomBar = { BottomNavBar(onProfileClick, onBookingsClick, onSavedClick) },
         containerColor = Color(0xFFF7F9FC)
     ) { paddingValues ->
 
@@ -65,7 +82,7 @@ fun DashboardScreen(userName: String) {
                 .padding(16.dp)
         ) {
 
-            item { TopBar(userName) }
+            item { TopBar(userName, onProfileClick) }
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
 
@@ -81,7 +98,7 @@ fun DashboardScreen(userName: String) {
 
             item { Spacer(modifier = Modifier.height(12.dp)) }
 
-            item { FeaturedVehicles() }
+            item { FeaturedVehiclesList(vehicles, onVehicleClick) }
 
             item { Spacer(modifier = Modifier.height(20.dp)) }
 
@@ -110,10 +127,34 @@ fun DashboardScreen(userName: String) {
     }
 }
 
+@Composable
+fun FeaturedVehiclesList(vehicles: List<VehicleModel>, onVehicleClick: (VehicleModel) -> Unit) {
+    LazyRow {
+        items(count = vehicles.size) { index ->
+            val v = vehicles[index]
+            Card(modifier = Modifier.width(240.dp).padding(end = 12.dp)) {
+                Column(modifier = Modifier.clickable { onVehicleClick(v) }) {
+                    if (v.imageUrl.isNotBlank()) {
+                        AsyncImage(model = v.imageUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(140.dp))
+                    } else {
+                        Image(painter = painterResource(R.drawable.thar), contentDescription = null, modifier = Modifier.fillMaxWidth().height(140.dp))
+                    }
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(v.name, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("₹${v.pricePerDay}/day", color = Color(0xFF2196F3))
+                        if (v.totalCount <= 0) Text("Unavailable", color = Color.Red)
+                    }
+                }
+            }
+        }
+    }
+}
+
 /* -------------------- TOP BAR -------------------- */
 
 @Composable
-fun TopBar(userName: String) {
+fun TopBar(userName: String, onProfileClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -129,14 +170,13 @@ fun TopBar(userName: String) {
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text("Welcome back", color = Color.Gray, fontSize = 12.sp)
+            Text("Welcome", color = Color.Gray, fontSize = 12.sp)
             Text(userName, fontWeight = FontWeight.Bold)
         }
 
-        Icon(
-            painter = painterResource(R.drawable.baseline_notifications_24),
-            contentDescription = null
-        )
+        IconButton(onClick = onProfileClick) {
+            Icon(painter = painterResource(R.drawable.baseline_settings_24), contentDescription = "Profile")
+        }
     }
 }
 
@@ -207,23 +247,25 @@ fun FeaturedHeader() {
 }
 
 @Composable
-fun FeaturedVehicles() {
+fun FeaturedVehicles(onVehicleClick: (Int,String) -> Unit) {
+    // kept for demo purposes; not used in the featured list implementation
     LazyRow {
         item {
-            VehicleCard(R.drawable.thar, "Mahindra Thar 4×4", "$60/day")
+            VehicleCard(R.drawable.thar, "Mahindra Thar 4×4", "$60/day", onVehicleClick)
         }
         item {
-            VehicleCard(R.drawable.royal_enfield, "Royal Enfield", "$25/day")
+            VehicleCard(R.drawable.royal_enfield, "Royal Enfield", "$25/day", onVehicleClick)
         }
     }
 }
 
 @Composable
-fun VehicleCard(image: Int, name: String, price: String) {
+fun VehicleCard(image: Int, name: String, price: String, onClick: (Int,String) -> Unit) {
     Card(
         modifier = Modifier
             .width(240.dp)
-            .padding(end = 12.dp),
+            .padding(end = 12.dp)
+            .clickable { onClick(image,name) },
         shape = RoundedCornerShape(16.dp)
     ) {
         Column {
@@ -282,30 +324,30 @@ fun OfferCard(
 /* -------------------- BOTTOM NAV -------------------- */
 
 @Composable
-fun BottomNavBar() {
+fun BottomNavBar(onProfileClick: () -> Unit, onBookingsClick: () -> Unit, onSavedClick: () -> Unit) {
     NavigationBar {
         NavigationBarItem(
             selected = true,
             onClick = {},
-            icon = { Icon(painterResource(R.drawable.baseline_home_24), null) },
+            icon = { Icon(painterResource(R.drawable.baseline_home_24), null) }, // Dashboard
             label = { Text("Home") }
         )
         NavigationBarItem(
             selected = false,
-            onClick = {},
-            icon = { Icon(painterResource(R.drawable.baseline_calendar_month_24), null) },
+            onClick = onBookingsClick,
+            icon = { Icon(painterResource(R.drawable.baseline_calendar_month_24), null) }, // Bookings
             label = { Text("Bookings") }
         )
         NavigationBarItem(
             selected = false,
-            onClick = {},
-            icon = { Icon(painterResource(R.drawable.baseline_favorite_24), null) },
+            onClick = onSavedClick,
+            icon = { Icon(painterResource(R.drawable.baseline_favorite_24), null) }, // Saved
             label = { Text("Saved") }
         )
         NavigationBarItem(
             selected = false,
-            onClick = {},
-            icon = { Icon(painterResource(R.drawable.baseline_account_circle_24), null) },
+            onClick = onProfileClick,
+            icon = { Icon(painterResource(R.drawable.baseline_account_circle_24), null) }, // Profile
             label = { Text("Profile") }
         )
     }
