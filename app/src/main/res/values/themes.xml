@@ -2,4 +2,10 @@
 <resources>
 
     <style name="Theme.App" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Launch theme used only for the cold start splash (first frame). Use a plain white background for safety. -->
+    <style name="Theme.App.Launch" parent="Theme.App">
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+
 </resources>

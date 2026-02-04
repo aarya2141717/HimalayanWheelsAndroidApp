@@ -6,43 +6,56 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import com.example.app.ui.theme.AppTheme
+import com.example.app.viewmodel.UserViewModel
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.app.ui.theme.AppTheme
-import com.example.app.viewmodel.UserViewModel
 
 class SignUpActivity : ComponentActivity() {
+
     private val viewModel: UserViewModel by viewModels()
-    private  val ADMIN_EMAIL = "admin@himalayanwheels.com"
-    private  val ADMIN_PASSWORD = "admin123"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             AppTheme {
+
                 LoginScreen(
-                    onLoginClick = { email, password, onResult ->
+                    onLoginClick = { email: String, password: String, stopLoading: () -> Unit ->
 
                         if (email.isBlank() || password.isBlank()) {
-                            onResult()
+                            stopLoading()
                             Toast.makeText(
                                 this,
                                 "Please enter email and password",
@@ -51,29 +64,46 @@ class SignUpActivity : ComponentActivity() {
                             return@LoginScreen
                         }
 
-                        // 👑 ADMIN SHORTCUT
-                        if (email == ADMIN_EMAIL && password == ADMIN_PASSWORD) {
-                            startActivity(
-                                Intent(this, AdminDashboardActivity::class.java)
-                            )
+                        // Use AppConfig admin credentials (editable in local.properties later if desired)
+                        // sanitize inputs and stored admin values to avoid formatting mismatches
+                        val userEmailSanitized = email.trim().lowercase()
+                        val userPassword = password.trim()
+
+                        fun String.sanitizeAdminField(): String = this.trim().removeSurrounding("\"").lowercase()
+
+                        val useAdminEmail = AppConfig.ADMIN_EMAIL.sanitizeAdminField()
+                        val useAdminPass = AppConfig.ADMIN_PASS.trim().removeSurrounding("\"")
+
+                        // Hardcoded admin shortcut
+                        if (userEmailSanitized == useAdminEmail && userPassword == useAdminPass) {
+                            stopLoading()
+                            startActivity(Intent(this, AdminDashboardActivity::class.java))
                             finish()
-                            onResult()
                             return@LoginScreen
                         }
 
-                        // 🔐 FIREBASE LOGIN
                         viewModel.login(email, password) { success, message, role ->
-                            onResult()
+                            stopLoading()
                             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 
                             if (success) {
                                 when (role) {
                                     "ADMIN" ->
-                                        startActivity(Intent(this, AdminDashboardActivity::class.java))
+                                        startActivity(
+                                            Intent(this, AdminDashboardActivity::class.java)
+                                        )
                                     "COMPANY" ->
-                                        startActivity(Intent(this, CompanyDashboardActivity::class.java))
+                                        startActivity(
+                                            Intent(this, CompanyDashboardActivity::class.java)
+                                        )
+                                    "VENDOR" ->
+                                        startActivity(
+                                            Intent(this, VendorDashboardActivity::class.java)
+                                        )
                                     else ->
-                                        startActivity(Intent(this, DashboardActivity::class.java))
+                                        startActivity(
+                                            Intent(this, DashboardActivity::class.java)
+                                        )
                                 }
                                 finish()
                             }
@@ -93,6 +123,7 @@ class SignUpActivity : ComponentActivity() {
     }
 }
 
+
 @Composable
 fun LoginScreen(
     onLoginClick: (String, String, () -> Unit) -> Unit,
@@ -101,201 +132,112 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var showPassword by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var showPassword by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF7F9FC))
-            .padding(horizontal = 24.dp),
+            .background(Color.White),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.weight(1f))
 
-        Box(
+        Spacer(modifier = Modifier.height(48.dp))
+
+        // Rounded logo at top center (bigger)
+        Surface(
             modifier = Modifier
-                .size(150.dp) // Adjusted logo size
-                .background(Color(0xFFEFE6DD), CircleShape), // Add background circle if needed to match image style or remove if logo has it
-            contentAlignment = Alignment.Center
+                .size(160.dp)
+                .clip(CircleShape)
+                .shadow(8.dp, CircleShape),
+            color = Color.White
         ) {
             Image(
-                painter = painterResource(R.drawable.logo),
-                contentDescription = "Logo",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop // Or Fit depending on the logo
+                painter = painterResource(id = R.drawable.logo),
+                contentDescription = "App Logo",
+                modifier = Modifier.padding(16.dp),
+                contentScale = ContentScale.Crop
             )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "Adventure Awaits",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF1A1C24)
-        )
+        Text("Welcome to Himalayan Wheels", color = Color.Black, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("Find and rent vehicles quickly", color = Color.DarkGray.copy(alpha = 0.9f), fontSize = 14.sp)
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
-        Text(
-            text = "Login to your Himalayan Wheels account.",
-            color = Color.Gray,
-            fontSize = 14.sp
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text("Email", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(8.dp))
+        // Full screen form area
+        Column(modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+        ) {
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                placeholder = { Text("Enter your email") },
-                modifier = Modifier
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White,
-                    unfocusedBorderColor = Color(0xFFE0E0E0),
-                    focusedBorderColor = Color(0xFF5C7CFA)
-                ),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                label = { Text("Email") },
                 singleLine = true,
-                enabled = !isLoading
+                leadingIcon = { Icon(painter = painterResource(id = R.drawable.baseline_email_24), contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text("Password", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                placeholder = { Text("Enter your password") },
-                modifier = Modifier
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White,
-                    unfocusedBorderColor = Color(0xFFE0E0E0),
-                    focusedBorderColor = Color(0xFF5C7CFA)
-                ),
-                trailingIcon = {
-                    IconButton(onClick = { showPassword = !showPassword }) {
-                        Icon(
-                            painter = painterResource(
-                                if (showPassword) R.drawable.baseline_visibility_24 else R.drawable.baseline_visibility_off_24
-                            ),
-                            contentDescription = "Toggle Password",
-                            tint = Color.Gray
-                        )
-                    }
-                },
-                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                label = { Text("Password") },
                 singleLine = true,
-                enabled = !isLoading
+                leadingIcon = { Icon(painter = painterResource(id = R.drawable.baseline_lock_24), contentDescription = null) },
+                visualTransformation = if (showPassword) PasswordVisualTransformation() else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
-        }
 
-        TextButton(
-            onClick = onForgotPasswordClick,
-            modifier = Modifier.align(Alignment.End),
-            enabled = !isLoading
-        ) {
-            Text(
-                text = "Forgot Password?",
-                color = Color(0xFFFF9800),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
+            Spacer(modifier = Modifier.height(24.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = {
-                if (!isLoading) {
-                    isLoading = true
-                    onLoginClick(email, password) {
-                        isLoading = false
-                    }
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C7CFA)),
-            enabled = !isLoading
-        ) {
             if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = Color.White
-                )
+                CircularProgressIndicator(color = Color.Black)
             } else {
-                Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = {
+                        isLoading = true
+                        onLoginClick(email.trim(), password) { isLoading = false }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors()
+                ) {
+                    Text("Login")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                TextButton(onClick = onSignupClick) {
+                    Text("Create account", color = Color.Black)
+                }
+
+                TextButton(onClick = onForgotPasswordClick) {
+                    Text("Forgot password?", color = Color.Black)
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Divider(modifier = Modifier.weight(1f), color = Color(0xFFE0E0E0))
-            Text(
-                "  or  ",
-                color = Color.Gray,
-                fontSize = 14.sp
-            )
-            Divider(modifier = Modifier.weight(1f), color = Color(0xFFE0E0E0))
-        }
+        // footer
+        Text("© Himalayan Wheels", color = Color.Gray.copy(alpha = 0.6f), fontSize = 12.sp)
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        OutlinedButton(
-            onClick = { /* Google */ },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0)),
-            enabled = !isLoading
-        ) {
-            Image(
-                painter = painterResource(R.drawable.googleicon),
-                contentDescription = "Google",
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Continue with Google", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Row(
-            modifier = Modifier.padding(bottom = 24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Don't have an account? ", color = Color.Gray, fontSize = 14.sp)
-            Text(
-                text = "Sign Up",
-                color = Color(0xFFFF9800),
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                modifier = Modifier.clickable { 
-                    if (!isLoading) onSignupClick() 
-                }
-            )
-        }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
