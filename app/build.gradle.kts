@@ -19,6 +19,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // BuildConfig fields pulled from local.properties (safe for secrets)
+        buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"${project.findProperty("CLOUDINARY_CLOUD_NAME") ?: ""}\"")
+        buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"${project.findProperty("CLOUDINARY_UPLOAD_PRESET") ?: ""}\"")
+        buildConfigField("String", "ADMIN_EMAIL", "\"${project.findProperty("ADMIN_EMAIL") ?: ""}\"")
+        buildConfigField("String", "ADMIN_PASS", "\"${project.findProperty("ADMIN_PASS") ?: ""}\"")
     }
 
     buildTypes {
@@ -39,6 +45,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -53,6 +60,10 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation("com.cloudinary:cloudinary-android:3.1.2")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // Compose livedata interop
+    implementation("androidx.compose.runtime:runtime-livedata")
+    // Kotlin coroutines for Android
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -70,7 +81,7 @@ dependencies {
     // Firebase Auth
     implementation("com.google.firebase:firebase-auth-ktx")
 
-    // Firebase Firestore (THIS IS MISSING)
+    // Firebase Firestore
     implementation("com.google.firebase:firebase-firestore-ktx")
 
 }
