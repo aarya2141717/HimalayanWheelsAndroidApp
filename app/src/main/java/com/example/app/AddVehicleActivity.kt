@@ -1,9 +1,8 @@
 package com.example.app
 
-import android.app.Activity
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
@@ -14,8 +13,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.app.model.VehicleModel
@@ -33,22 +34,29 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.Text
 import androidx.compose.ui.unit.sp
 import com.google.firebase.firestore.FirebaseFirestore
+import org.json.JSONObject
+
+// Added imports to support scrolling and IME padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
 
 class AddVehicleActivity : ComponentActivity() {
 
     private val vm: VendorViewModel by viewModels()
     private var imageUri: Uri? = null
-    private lateinit var pickLauncher: ActivityResultLauncher<Intent>
+    private lateinit var pickLauncher: ActivityResultLauncher<String>
 
+    @Suppress("DEPRECATION") // SOFT_INPUT_ADJUST_RESIZE constant is deprecated but still functional across SDKs
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Register Activity Result launcher for image picking
-        pickLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val intent = result.data
-                imageUri = intent?.data
-            }
+        // Ensure the window resizes when soft keyboard is shown
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+
+        // Register Activity Result launcher for image picking using GetContent (safer, no permission required)
+        pickLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            if (uri != null) imageUri = uri
         }
 
         // Check if editing existing vehicle
@@ -70,6 +78,7 @@ class AddVehicleActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     private fun render(initialVehicle: VehicleModel?) {
         setContent {
             AppTheme {
@@ -78,7 +87,7 @@ class AddVehicleActivity : ComponentActivity() {
 
                 Scaffold(
                     snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-                    topBar = { TopAppBar(title = { Text(if (initialVehicle == null) "Add Vehicle" else "Edit Vehicle") }) }
+                    topBar = {  TopAppBar(title = { Text(if (initialVehicle == null) "Add Vehicle" else "Edit Vehicle") }) }
                 ) { padding ->
                     AddVehicleScreen(
                         modifier = Modifier.padding(padding),
@@ -115,6 +124,8 @@ class AddVehicleActivity : ComponentActivity() {
                                         // upload new image
                                         val url = uploadToCloudinary(imageUri!!)
                                         if (!url.isNullOrBlank()) updatedMap["imageUrl"] = url
+                                         // show update image url in snackbar for debugging
+                                        if (!url.isNullOrBlank()) coroutineScope.launch { snackbarHostState.showSnackbar("New image: $url") }
                                     }
 
                                     vm.updateVehicle(initialVehicle.id, updatedMap) { ok, msg ->
@@ -150,7 +161,8 @@ class AddVehicleActivity : ComponentActivity() {
                                     vm.addVehicle(finalVehicle) { ok, msg ->
                                         coroutineScope.launch {
                                             if (ok) {
-                                                snackbarHostState.showSnackbar("Vehicle uploaded")
+                                                val displayMsg = if (!imgUrl.isNullOrBlank()) "Vehicle uploaded (image: ${imgUrl})" else "Vehicle uploaded"
+                                                snackbarHostState.showSnackbar(displayMsg)
                                                 finish()
                                             } else {
                                                 snackbarHostState.showSnackbar("Failed to save: ${msg ?: "unknown"}")
@@ -168,9 +180,8 @@ class AddVehicleActivity : ComponentActivity() {
     }
 
     private fun pickImage() {
-        val i = Intent(Intent.ACTION_PICK)
-        i.type = "image/*"
-        pickLauncher.launch(i)
+        // Use GetContent contract
+        pickLauncher.launch("image/*")
     }
 
     private suspend fun uploadToCloudinary(uri: Uri): String? {
@@ -178,11 +189,13 @@ class AddVehicleActivity : ComponentActivity() {
             try {
                 val input: InputStream? = contentResolver.openInputStream(uri)
                 val bytes = input?.readBytes()
+                if (bytes == null) return@withContext null
+
                 val client = OkHttpClient()
-                val mediaType = "image/*".toMediaTypeOrNull()
+                val mediaType = "application/octet-stream".toMediaTypeOrNull()
                 val requestBody = MultipartBody.Builder().setType(MultipartBody.FORM)
                     .addFormDataPart("file", "upload.jpg",
-                        bytes!!.toRequestBody(mediaType))
+                        bytes.toRequestBody(mediaType))
                     .addFormDataPart("upload_preset", AppConfig.CLOUDINARY_UPLOAD_PRESET)
                     .build()
                 val req = Request.Builder()
@@ -191,8 +204,18 @@ class AddVehicleActivity : ComponentActivity() {
                     .build()
                 val resp = client.newCall(req).execute()
                 val body = resp.body?.string()
-                val url = Regex("\"secure_url\"\\s*:\\s*\"([^\"]+)\"").find(body ?: "")?.groups?.get(1)?.value
-                url
+                if (body.isNullOrBlank()) return@withContext null
+                try {
+                    val json = JSONObject(body)
+                    val url = json.optString("secure_url", "")
+                    if (url.isNotBlank()) return@withContext url
+                } catch (_: Exception) {
+                    // fallback to regex
+                    val url = Regex("\"secure_url\"\\s*:\\s*\"([^\"]+)\"").find(body)?.groups?.get(1)?.value
+                    if (!url.isNullOrBlank()) return@withContext url
+                }
+
+                null
             } catch (e: Exception) {
                 e.printStackTrace()
                 null
@@ -213,8 +236,8 @@ fun AddVehicleScreen(modifier: Modifier = Modifier, initialVehicle: VehicleModel
 
     val types = listOf("Car", "Bike", "SUV")
 
-    Column(modifier = modifier.fillMaxSize().background(Color(0xFFF7F9FC)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Vehicle Name") }, modifier = Modifier.fillMaxWidth())
+    Column(modifier = modifier.fillMaxSize().background(Color(0xFFF7F9FC)).padding(16.dp).verticalScroll(rememberScrollState()).imePadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Vehicle Name") }, modifier = Modifier.fillMaxWidth(), textStyle = TextStyle(color = Color.Black))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // Type selection as simple chips
@@ -224,13 +247,13 @@ fun AddVehicleScreen(modifier: Modifier = Modifier, initialVehicle: VehicleModel
             }
         }
 
-        OutlinedTextField(value = price, onValueChange = { price = it }, label = { Text("Price per day") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = price, onValueChange = { price = it }, label = { Text("Price per day") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), textStyle = TextStyle(color = Color.Black))
 
-        OutlinedTextField(value = number, onValueChange = { number = it }, label = { Text("Vehicle Number (mandatory)") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = number, onValueChange = { number = it }, label = { Text("Vehicle Number (mandatory)") }, modifier = Modifier.fillMaxWidth(), textStyle = TextStyle(color = Color.Black))
 
-        OutlinedTextField(value = count, onValueChange = { count = it }, label = { Text("Total Count") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = count, onValueChange = { count = it }, label = { Text("Total Count") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), textStyle = TextStyle(color = Color.Black))
 
-        OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), textStyle = TextStyle(color = Color.Black))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Button(onClick = onPick) { Text(if (isPickingImage()) "Image selected" else "Pick Image") }

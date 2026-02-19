@@ -22,9 +22,9 @@
         </activity>
 
         <!-- Normal activities (NO intent-filter) -->
-        <activity android:name=".SignUpActivity" />
-        <activity android:name=".RegistrationActivity" />
-        <activity android:name=".ForgotPasswordActivity" />
+        <activity android:name=".SignUpActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".RegistrationActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ForgotPasswordActivity" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".DashboardActivity" />
         <activity android:name=".CompanyDashboardActivity" />
         <activity android:name=".AdminDashboardActivity" />
@@ -34,7 +34,7 @@
         <activity android:name=".BookingsActivity" />
         <activity android:name=".SavedActivity" />
         <activity android:name=".VendorDashboardActivity" />
-        <activity android:name=".AddVehicleActivity" />
+        <activity android:name=".AddVehicleActivity" android:windowSoftInputMode="adjustResize" />
 
     </application>
 

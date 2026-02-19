@@ -9,15 +9,18 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -25,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppTheme
 import com.example.app.viewmodel.UserViewModel
+import androidx.compose.foundation.layout.imePadding
 
 class RegistrationActivity : ComponentActivity() {
 
@@ -85,7 +89,10 @@ fun RegistrationScreen(
     var isLoading by remember { mutableStateOf(false) }
     var selectedRole by remember { mutableStateOf("USER") }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F9FC))) {
+    // We'll use explicit textStyle on fields to ensure visibility across devices
+    val fieldTextStyle = TextStyle(color = Color.Black)
+
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F9FC)).verticalScroll(rememberScrollState()).imePadding()) {
 
         TopAppBar(
             title = { Text("Create Account") },
@@ -130,7 +137,8 @@ fun RegistrationScreen(
                 label = { Text("Full Name") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                textStyle = fieldTextStyle
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -142,7 +150,8 @@ fun RegistrationScreen(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                textStyle = fieldTextStyle
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -169,7 +178,8 @@ fun RegistrationScreen(
                 if (showPassword) VisualTransformation.None
                 else PasswordVisualTransformation(),
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                textStyle = fieldTextStyle
             )
 
             Spacer(modifier = Modifier.height(24.dp))

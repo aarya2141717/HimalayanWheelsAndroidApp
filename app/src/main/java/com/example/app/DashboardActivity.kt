@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppTheme
 import com.example.app.viewmodel.UserViewModel
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import coil.compose.AsyncImage
 import com.example.app.model.VehicleModel
 
@@ -42,12 +43,20 @@ class DashboardActivity : ComponentActivity() {
                     viewModel.fetchCurrentUserName { name ->
                         if (!name.isNullOrBlank()) userName = name
                     }
-                    // fetch featured vehicles from Firestore
-                    val db = FirebaseFirestore.getInstance()
-                    db.collection("vehicles").limit(10).get()
-                        .addOnSuccessListener { snap ->
-                            vehicles = snap.documents.mapNotNull { it.toObject(VehicleModel::class.java)?.copy(id = it.id) }
+                }
+
+                // Real-time listener for vehicles so new vehicles show up immediately
+                val db = FirebaseFirestore.getInstance()
+                DisposableEffect(Unit) {
+                    val registration: ListenerRegistration = db.collection("vehicles")
+                        .addSnapshotListener { snap, err ->
+                            if (err != null) {
+                                // keep list empty or unchanged
+                                return@addSnapshotListener
+                            }
+                            vehicles = snap?.documents?.mapNotNull { it.toObject(VehicleModel::class.java)?.copy(id = it.id) } ?: emptyList()
                         }
+                    onDispose { registration.remove() }
                 }
 
                 DashboardScreen(userName = userName, vehicles = vehicles, onProfileClick = {
