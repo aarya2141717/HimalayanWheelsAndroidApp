@@ -3,12 +3,12 @@ package com.example.app
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import com.example.app.ui.theme.AppTheme
 import com.example.app.viewmodel.UserViewModel
-
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -30,8 +31,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,17 +41,28 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.clickable
 
 class SignUpActivity : ComponentActivity() {
 
     private val viewModel: UserViewModel by viewModels()
+
+    // Toggle this to true during testing so successful login opens TestDashboardActivity
+    // Set to false for normal behavior (opens real DashboardActivity)
+    private val USE_TEST_DASHBOARD = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,8 +70,9 @@ class SignUpActivity : ComponentActivity() {
         setContent {
             AppTheme {
 
+                // simplified lambda parameter names to avoid confusing typed-parameter lambda syntax
                 LoginScreen(
-                    onLoginClick = { email: String, password: String, stopLoading: () -> Unit ->
+                    onLoginClick = { email, password, stopLoading ->
 
                         if (email.isBlank() || password.isBlank()) {
                             stopLoading()
@@ -91,27 +105,69 @@ class SignUpActivity : ComponentActivity() {
                         viewModel.login(email, password) { success, message, role ->
                             stopLoading()
                             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                            Log.d("SignUpActivity", "Login callback: success=$success role=$role")
 
                             if (success) {
                                 when (role) {
                                     "ADMIN" ->
-                                        startActivity(
-                                            Intent(this, AdminDashboardActivity::class.java)
-                                        )
+                                        try {
+                                            val adminIntent = Intent(this, AdminDashboardActivity::class.java)
+                                            if (adminIntent.resolveActivity(packageManager) != null) {
+                                                startActivity(adminIntent)
+                                            } else {
+                                                Log.e("SignUpActivity", "Admin activity not found in package manager")
+                                                Toast.makeText(this, "Admin Dashboard not available", Toast.LENGTH_LONG).show()
+                                            }
+                                            // do not finish() immediately to allow safe debugging if the target activity crashes
+                                        } catch (e: Exception) {
+                                            Log.e("SignUpActivity", "Failed to open AdminDashboard", e)
+                                            Toast.makeText(this, "Unable to open Admin Dashboard: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
                                     "COMPANY" ->
-                                        startActivity(
-                                            Intent(this, CompanyDashboardActivity::class.java)
-                                        )
+                                        try {
+                                            val cIntent = Intent(this, CompanyDashboardActivity::class.java)
+                                            if (cIntent.resolveActivity(packageManager) != null) {
+                                                startActivity(cIntent)
+                                            } else {
+                                                Log.e("SignUpActivity", "Company activity not found in package manager")
+                                                Toast.makeText(this, "Company Dashboard not available", Toast.LENGTH_LONG).show()
+                                            }
+                                            // do not finish() immediately
+                                        } catch (e: Exception) {
+                                            Log.e("SignUpActivity", "Failed to open CompanyDashboard", e)
+                                            Toast.makeText(this, "Unable to open Company Dashboard: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
                                     "VENDOR" ->
-                                        startActivity(
-                                            Intent(this, VendorDashboardActivity::class.java)
-                                        )
+                                        try {
+                                            val vIntent = Intent(this, VendorDashboardActivity::class.java)
+                                            if (vIntent.resolveActivity(packageManager) != null) {
+                                                startActivity(vIntent)
+                                            } else {
+                                                Log.e("SignUpActivity", "Vendor activity not found in package manager")
+                                                Toast.makeText(this, "Vendor Dashboard not available", Toast.LENGTH_LONG).show()
+                                            }
+                                            // do not finish() immediately
+                                        } catch (e: Exception) {
+                                            Log.e("SignUpActivity", "Failed to open VendorDashboard", e)
+                                            Toast.makeText(this, "Unable to open Vendor Dashboard: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
                                     else ->
-                                        startActivity(
-                                            Intent(this, DashboardActivity::class.java)
-                                        )
+                                        try {
+                                            // During debugging we open a safe TestDashboardActivity to verify login flows
+                                            val targetCls = if (USE_TEST_DASHBOARD) TestDashboardActivity::class.java else DashboardActivity::class.java
+                                            val dIntent = Intent(this, targetCls)
+                                            if (dIntent.resolveActivity(packageManager) != null) {
+                                                startActivity(dIntent)
+                                            } else {
+                                                Log.e("SignUpActivity", "Target dashboard activity not found in package manager")
+                                                Toast.makeText(this, "Dashboard not available", Toast.LENGTH_LONG).show()
+                                            }
+                                            // do not finish() immediately so the login screen remains if Dashboard crashes
+                                        } catch (e: Exception) {
+                                            Log.e("SignUpActivity", "Failed to open Dashboard", e)
+                                            Toast.makeText(this, "Unable to open Dashboard: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
                                 }
-                                finish()
                             }
                         }
                     },
@@ -141,6 +197,14 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
+
+    val fieldTextStyle = TextStyle(color = Color.Black)
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // FocusRequesters so Next moves focus correctly on real devices
+    val emailFocusRequester = remember { FocusRequester() }
+    val passwordFocusRequester = remember { FocusRequester() }
 
     Column(
         modifier = Modifier
@@ -182,13 +246,6 @@ fun LoginScreen(
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
         ) {
-            val textFieldColors = TextFieldDefaults.outlinedTextFieldColors(
-                textColor = Color.Black,
-                cursorColor = Color.Black,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color.Gray,
-                placeholderColor = Color.Gray
-            )
 
             OutlinedTextField(
                 value = email,
@@ -196,10 +253,13 @@ fun LoginScreen(
                 label = { Text("Email") },
                 singleLine = true,
                 leadingIcon = { Icon(painter = painterResource(id = R.drawable.baseline_email_24), contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = { passwordFocusRequester.requestFocus() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(emailFocusRequester),
                 shape = RoundedCornerShape(12.dp),
-                colors = textFieldColors
+                textStyle = fieldTextStyle
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -211,10 +271,25 @@ fun LoginScreen(
                 singleLine = true,
                 leadingIcon = { Icon(painter = painterResource(id = R.drawable.baseline_lock_24), contentDescription = null) },
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(passwordFocusRequester),
                 shape = RoundedCornerShape(12.dp),
-                colors = textFieldColors
+                textStyle = fieldTextStyle,
+                trailingIcon = {
+                    Text(
+                        text = if (showPassword) "Hide" else "Show",
+                        color = Color.Gray,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .clickable { showPassword = !showPassword }
+                    )
+                }
             )
 
             Spacer(modifier = Modifier.height(28.dp))

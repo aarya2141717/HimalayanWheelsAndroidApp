@@ -75,20 +75,21 @@ class UserViewModel : ViewModel() {
     }
 
     // New helper: fetch current user's display name (from Firestore)
-    fun fetchCurrentUserName(callback: (String?) -> Unit) {
+    fun fetchCurrentUserName(callback: (String) -> Unit) {
         val user = auth.currentUser
         if (user == null) {
-            callback(null)
+            callback("User") // fallback
             return
         }
+
         val uid = user.uid
         db.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
-                val name = doc.getString("name") ?: user.displayName ?: ""
+                val name = doc.getString("name") ?: "User"
                 callback(name)
             }
             .addOnFailureListener {
-                callback(null)
+                callback("User") // fallback
             }
     }
 
