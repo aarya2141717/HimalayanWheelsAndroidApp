@@ -10,18 +10,23 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.App">
 
-        <!-- ✅ ONLY ONE LAUNCHER -->
+        <!-- Launcher Activity -->
         <activity
             android:name=".SplashActivity"
             android:exported="true"
             android:theme="@style/Theme.App.Launch">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
         </activity>
 
-        <!-- Normal activities (NO intent-filter) -->
+        <!-- Splash Activity (NO intent-filter here) -->
+
+
+        <!-- Other Activities -->
         <activity android:name=".SignUpActivity" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".RegistrationActivity" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ForgotPasswordActivity" android:windowSoftInputMode="adjustResize" />
@@ -35,6 +40,7 @@
         <activity android:name=".SavedActivity" />
         <activity android:name=".VendorDashboardActivity" />
         <activity android:name=".AddVehicleActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".TestDashboardActivity" />
 
     </application>
 
