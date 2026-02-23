@@ -26,6 +26,7 @@ import coil.compose.AsyncImage
 import com.example.app.model.VehicleModel
 import com.example.app.ui.theme.AppTheme
 import com.example.app.viewmodel.VendorViewModel
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 
 class CompanyDashboardActivity : ComponentActivity() {
@@ -52,10 +53,38 @@ fun CompanyDashboardScreen(vehicles: List<VehicleModel>, vm: VendorViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val db = FirebaseFirestore.getInstance()
+    val companyId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
+    // Listen to bookings for this vendor
+    var pendingBookings by remember { mutableStateOf(listOf<Map<String, Any>>()) }
+
+    LaunchedEffect(companyId) {
+        if (companyId.isNotBlank()) {
+            db.collection("bookings").whereEqualTo("vendorId", companyId).addSnapshotListener { snap, err ->
+                if (err != null) return@addSnapshotListener
+                pendingBookings = snap?.documents?.mapNotNull { it.data?.plus(mapOf("_id" to it.id)) }?.filter { (it["status"] as? String) == "PENDING" } ?: emptyList()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Company Dashboard") })
+            TopAppBar(
+                title = { Text("Company Dashboard") },
+                actions = {
+                    IconButton(onClick = {
+                        // logout and go to SignUpActivity clearing backstack
+                        com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                        val i = Intent(context, SignUpActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        }
+                        context.startActivity(i)
+                    }) {
+                        Icon(painter = painterResource(R.drawable.baseline_lock_24), contentDescription = "Logout")
+                    }
+                }
+            )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         floatingActionButton = {
@@ -153,6 +182,60 @@ fun CompanyDashboardScreen(vehicles: List<VehicleModel>, vm: VendorViewModel) {
                                 }) { Text("Delete") }
                             }
 
+                        }
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+
+            // Pending bookings section
+            item {
+                Text("Pending Bookings", style = MaterialTheme.typography.titleMedium)
+            }
+
+            if (pendingBookings.isEmpty()) {
+                item {
+                    Text("No pending bookings", color = Color.Gray)
+                }
+            } else {
+                items(pendingBookings) { b ->
+                    val id = b["_id"] as? String ?: ""
+                    val userName = b["userName"] as? String ?: "User"
+                    val vName = b["vehicleName"] as? String ?: "Vehicle"
+
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(vName, fontSize = 16.sp)
+                                Text("Requested by: $userName", color = Color.Gray)
+                            }
+
+                            Row {
+                                TextButton(onClick = {
+                                    // Approve by company
+                                    coroutineScope.launch {
+                                        db.collection("bookings").document(id).update(mapOf("companyApproved" to true))
+                                            .addOnSuccessListener {
+                                                // Check if admin has already approved, finalize if so
+                                                db.collection("bookings").document(id).get().addOnSuccessListener { snap ->
+                                                    val adminApproved = snap.getBoolean("adminApproved") ?: false
+                                                    val status = snap.getString("status") ?: ""
+                                                    if (status == "PENDING" && adminApproved) {
+                                                        finalizeBooking(id, snap.getString("vehicleId") ?: "")
+                                                    }
+                                                }
+                                            }
+                                    }
+                                }) { Text("Approve") }
+
+                                TextButton(onClick = {
+                                    // Reject
+                                    coroutineScope.launch {
+                                        db.collection("bookings").document(id).update(mapOf("companyApproved" to false, "status" to "REJECTED"))
+                                    }
+                                }) { Text("Reject") }
+                            }
                         }
                     }
                 }

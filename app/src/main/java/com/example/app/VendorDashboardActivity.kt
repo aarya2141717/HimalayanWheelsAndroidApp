@@ -55,6 +55,20 @@ fun VendorDashboardScreen(vehicles: List<VehicleModel>, vm: VendorViewModel) {
     val context = LocalContext.current
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Vendor Dashboard") },
+                actions = {
+                    IconButton(onClick = {
+                        com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                        val i = Intent(context, SignUpActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK }
+                        context.startActivity(i)
+                    }) {
+                        Icon(painter = painterResource(R.drawable.baseline_lock_24), contentDescription = "Logout")
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(onClick = {

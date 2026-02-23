@@ -2,6 +2,7 @@ package com.example.app
 
 import android.os.Bundle
 import android.widget.Toast
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -31,8 +32,11 @@ class ProfileActivity : ComponentActivity() {
                 ProfileScreen(
                     viewModel = viewModel,
                     onLogout = {
+                        // sign out and redirect to SignUpActivity clearing back-stack
                         viewModel.logout()
-                        finish()
+                        val i = Intent(this@ProfileActivity, SignUpActivity::class.java)
+                        i.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        startActivity(i)
                     }
                 )
             }

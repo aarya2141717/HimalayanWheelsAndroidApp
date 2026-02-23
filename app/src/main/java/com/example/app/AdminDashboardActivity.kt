@@ -15,6 +15,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +33,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppTheme
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 
 class AdminDashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,11 +50,22 @@ class AdminDashboardActivity : ComponentActivity() {
 @Composable
 fun AdminDashboardScreen() {
     val context = LocalContext.current
-    
+    val db = FirebaseFirestore.getInstance()
+    val coroutineScope = rememberCoroutineScope()
+
+    // Listen to pending bookings
+    var pendingBookings by remember { mutableStateOf(listOf<Map<String, Any>>()) }
+    LaunchedEffect(Unit) {
+        db.collection("bookings").whereEqualTo("status", "PENDING").addSnapshotListener { snap, err ->
+            if (err != null) return@addSnapshotListener
+            pendingBookings = snap?.documents?.mapNotNull { it.data?.plus(mapOf("_id" to it.id)) } ?: emptyList()
+        }
+    }
+
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { 
+                onClick = {
                     context.startActivity(Intent(context, AddProductActivity::class.java))
                 },
                 containerColor = Color(0xFF2F4CFA),
@@ -73,12 +93,55 @@ fun AdminDashboardScreen() {
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // Needs Attention Section
-            item {
-                SectionHeader(title = "Needs Attention", actionText = "View All")
+            // Pending bookings section
+            item { SectionHeader(title = "Pending Bookings", actionText = "") }
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+
+            if (pendingBookings.isEmpty()) {
+                item { Text("No pending bookings") }
+            } else {
+                items(pendingBookings) { b ->
+                    val id = b["_id"] as? String ?: ""
+                    val userName = b["userName"] as? String ?: "User"
+                    val vName = b["vehicleName"] as? String ?: "Vehicle"
+                    val companyApproved = b["companyApproved"] as? Boolean ?: false
+                    val adminApproved = b["adminApproved"] as? Boolean ?: false
+
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(vName, fontSize = 16.sp)
+                                Text("Requested by: $userName", color = Color.Gray)
+                                Text("Company approved: ${if (companyApproved) "Yes" else "No"}")
+                                Text("Admin approved: ${if (adminApproved) "Yes" else "No"}")
+                            }
+
+                            Column {
+                                TextButton(onClick = {
+                                    // Admin Approve
+                                    coroutineScope.launch {
+                                        db.collection("bookings").document(id).update(mapOf("adminApproved" to true)).addOnSuccessListener {
+                                            // if company already approved, finalize
+                                            db.collection("bookings").document(id).get().addOnSuccessListener { snap ->
+                                                val comp = snap.getBoolean("companyApproved") ?: false
+                                                if (comp) {
+                                                    finalizeBooking(id, snap.getString("vehicleId") ?: "")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }) { Text("Approve") }
+
+                                TextButton(onClick = {
+                                    coroutineScope.launch {
+                                        db.collection("bookings").document(id).update(mapOf("adminApproved" to false, "status" to "REJECTED"))
+                                    }
+                                }) { Text("Reject") }
+                            }
+                        }
+                    }
+                }
             }
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-            item { NeedsAttentionList() }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
@@ -88,15 +151,49 @@ fun AdminDashboardScreen() {
             }
             item { Spacer(modifier = Modifier.height(12.dp)) }
             item { RecentActivityList() }
-            
-            // Bottom spacing for FAB
+
             item { Spacer(modifier = Modifier.height(60.dp)) }
         }
     }
 }
 
+// Helper to finalize booking and decrement vehicle count atomically
+fun finalizeBooking(bookingId: String, vehicleId: String) {
+    val db = FirebaseFirestore.getInstance()
+    val bookingRef = db.collection("bookings").document(bookingId)
+    val vehicleRef = db.collection("vehicles").document(vehicleId)
+
+    db.runTransaction { trx ->
+        // Re-read booking inside transaction to ensure latest approvals/status
+        val bookingSnap = trx.get(bookingRef)
+        val status = bookingSnap.getString("status") ?: ""
+        val companyApproved = bookingSnap.getBoolean("companyApproved") ?: false
+        val adminApproved = bookingSnap.getBoolean("adminApproved") ?: false
+
+        if (status != "PENDING") {
+            // nothing to do
+            return@runTransaction null
+        }
+
+        if (!companyApproved || !adminApproved) {
+            // approvals not complete
+            return@runTransaction null
+        }
+
+        val vehSnap = trx.get(vehicleRef)
+        val current = vehSnap.getLong("totalCount")?.toInt() ?: 0
+        val newCount = if (current > 0) current - 1 else 0
+        trx.update(vehicleRef, mapOf("totalCount" to newCount, "available" to (newCount > 0)))
+        trx.update(bookingRef, mapOf("status" to "CONFIRMED", "confirmedAt" to com.google.firebase.Timestamp.now()))
+        null
+    }.addOnSuccessListener {
+        // success
+    }.addOnFailureListener { e -> e.printStackTrace() }
+}
+
 @Composable
 fun AdminTopBar() {
+    val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -130,6 +227,13 @@ fun AdminTopBar() {
                 contentDescription = "Notifications",
                 tint = Color.Black
             )
+        }
+        IconButton(onClick = {
+            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+            val i = Intent(context, SignUpActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK }
+            context.startActivity(i)
+        }) {
+            Icon(painter = painterResource(R.drawable.baseline_lock_24), contentDescription = "Logout", tint = Color.Black)
         }
     }
 }
@@ -277,6 +381,7 @@ fun SectionHeader(title: String, actionText: String) {
     }
 }
 
+@Suppress("unused") // Keep for future use; suppress unused warning
 @Composable
 fun NeedsAttentionList() {
     LazyRow(
