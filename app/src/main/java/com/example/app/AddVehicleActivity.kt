@@ -2,6 +2,7 @@ package com.example.app
 
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -41,10 +42,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.imePadding
 
+// New imports for image preview and icons
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
 class AddVehicleActivity : ComponentActivity() {
 
     private val vm: VendorViewModel by viewModels()
-    private var imageUri: Uri? = null
+    // make imageUri a mutable state so Compose can observe changes
+    private var imageUri: Uri? by mutableStateOf(null)
     private lateinit var pickLauncher: ActivityResultLauncher<String>
 
     @Suppress("DEPRECATION") // SOFT_INPUT_ADJUST_RESIZE constant is deprecated but still functional across SDKs
@@ -87,11 +97,21 @@ class AddVehicleActivity : ComponentActivity() {
 
                 Scaffold(
                     snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-                    topBar = {  TopAppBar(title = { Text(if (initialVehicle == null) "Add Vehicle" else "Edit Vehicle") }) }
+                    topBar = {
+                        TopAppBar(
+                            title = { Text(if (initialVehicle == null) "Add Vehicle" else "Edit Vehicle") },
+                            navigationIcon = {
+                                IconButton(onClick = { finish() }) {
+                                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                                }
+                            }
+                        )
+                    }
                 ) { padding ->
                     AddVehicleScreen(
                         modifier = Modifier.padding(padding),
                         initialVehicle = initialVehicle,
+                        previewUri = imageUri,
                         onPick = { pickImage() },
                         onSave = { name, type, price, number, count, desc ->
                             if (name.isBlank() || number.isBlank()) {
@@ -122,10 +142,14 @@ class AddVehicleActivity : ComponentActivity() {
 
                                     if (imageUri != null) {
                                         // upload new image
-                                        val url = uploadToCloudinary(imageUri!!)
-                                        if (!url.isNullOrBlank()) updatedMap["imageUrl"] = url
-                                         // show update image url in snackbar for debugging
-                                        if (!url.isNullOrBlank()) coroutineScope.launch { snackbarHostState.showSnackbar("New image: $url") }
+                                        val (url, debug) = uploadToCloudinary(imageUri!!)
+                                        if (url.isNullOrBlank()) {
+                                            coroutineScope.launch { snackbarHostState.showSnackbar("Image upload failed. ${debug ?: "unknown"}") }
+                                            return@launch
+                                        }
+                                        updatedMap["imageUrl"] = url
+                                        // show update image url in snackbar for debugging
+                                        coroutineScope.launch { snackbarHostState.showSnackbar("New image: $url") }
                                     }
 
                                     vm.updateVehicle(initialVehicle.id, updatedMap) { ok, msg ->
@@ -156,13 +180,35 @@ class AddVehicleActivity : ComponentActivity() {
 
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar("Uploading image and saving vehicle...")
-                                    val imgUrl = imageUri?.let { uploadToCloudinary(it) }
+                                    val uploadResult = imageUri?.let { uploadToCloudinary(it) }
+                                    val imgUrl = uploadResult?.first
+                                    val debug = uploadResult?.second
+                                    if (imageUri != null && imgUrl.isNullOrBlank()) {
+                                        // image was selected but upload failed — do not save with empty URL; show debug info
+                                        snackbarHostState.showSnackbar("Image upload failed. ${debug ?: "unknown"}")
+                                        return@launch
+                                    }
                                     val finalVehicle = vehicle.copy(imageUrl = imgUrl ?: "")
                                     vm.addVehicle(finalVehicle) { ok, msg ->
                                         coroutineScope.launch {
                                             if (ok) {
                                                 val displayMsg = if (!imgUrl.isNullOrBlank()) "Vehicle uploaded (image: ${imgUrl})" else "Vehicle uploaded"
                                                 snackbarHostState.showSnackbar(displayMsg)
+                                                // Read back the saved document to confirm what's stored in Firestore
+                                                val docId = msg ?: ""
+                                                if (docId.isNotBlank()) {
+                                                    val db = FirebaseFirestore.getInstance()
+                                                    db.collection("vehicles").document(docId).get().addOnSuccessListener { docSnapshot ->
+                                                        val storedUrl = docSnapshot.getString("imageUrl") ?: ""
+                                                        Log.d("AddVehicle", "Saved docId=$docId imageUrl=$storedUrl")
+                                                        coroutineScope.launch { snackbarHostState.showSnackbar("Saved imageUrl: ${if (storedUrl.isNotBlank()) storedUrl else "(empty)"}") }
+                                                        // finish after a short delay? we'll simply finish to return to dashboard
+                                                        // finish() is called on the activity thread below via another coroutine
+                                                    }.addOnFailureListener { e ->
+                                                        Log.e("AddVehicle", "Failed to read saved doc $docId", e)
+                                                        coroutineScope.launch { snackbarHostState.showSnackbar("Saved but failed to read doc: ${e.message}") }
+                                                    }
+                                                }
                                                 finish()
                                             } else {
                                                 snackbarHostState.showSnackbar("Failed to save: ${msg ?: "unknown"}")
@@ -184,17 +230,21 @@ class AddVehicleActivity : ComponentActivity() {
         pickLauncher.launch("image/*")
     }
 
-    private suspend fun uploadToCloudinary(uri: Uri): String? {
+    // Return Pair(url, debug) where debug contains response body or error message for diagnostics
+    private suspend fun uploadToCloudinary(uri: Uri): Pair<String?, String?> {
         return withContext(Dispatchers.IO) {
             try {
                 val input: InputStream? = contentResolver.openInputStream(uri)
                 val bytes = input?.readBytes()
-                if (bytes == null) return@withContext null
+                if (bytes == null) return@withContext Pair(null, "empty_input_stream")
 
                 val client = OkHttpClient()
-                val mediaType = "application/octet-stream".toMediaTypeOrNull()
+                // Try to detect mime type from content resolver for better compatibility with Cloudinary
+                val detected = contentResolver.getType(uri) ?: "image/jpeg"
+                val mediaType = detected.toMediaTypeOrNull()
+                val filename = uri.lastPathSegment?.substringAfterLast('/') ?: "upload.jpg"
                 val requestBody = MultipartBody.Builder().setType(MultipartBody.FORM)
-                    .addFormDataPart("file", "upload.jpg",
+                    .addFormDataPart("file", filename,
                         bytes.toRequestBody(mediaType))
                     .addFormDataPart("upload_preset", AppConfig.CLOUDINARY_UPLOAD_PRESET)
                     .build()
@@ -204,21 +254,24 @@ class AddVehicleActivity : ComponentActivity() {
                     .build()
                 val resp = client.newCall(req).execute()
                 val body = resp.body?.string()
-                if (body.isNullOrBlank()) return@withContext null
+                Log.d("AddVehicle", "Cloudinary upload response code=${resp.code} body=${body}")
+                if (body.isNullOrBlank()) return@withContext Pair(null, "empty_response_body; code=${resp.code}")
                 try {
                     val json = JSONObject(body)
                     val url = json.optString("secure_url", "")
-                    if (url.isNotBlank()) return@withContext url
-                } catch (_: Exception) {
+                    if (url.isNotBlank()) return@withContext Pair(url, body)
+                } catch (e: Exception) {
                     // fallback to regex
                     val url = Regex("\"secure_url\"\\s*:\\s*\"([^\"]+)\"").find(body)?.groups?.get(1)?.value
-                    if (!url.isNullOrBlank()) return@withContext url
+                    if (!url.isNullOrBlank()) return@withContext Pair(url, body)
                 }
 
-                null
+                // no url found in body
+                Pair(null, body)
             } catch (e: Exception) {
                 e.printStackTrace()
-                null
+                Log.e("AddVehicle", "upload exception", e)
+                Pair(null, e.message ?: "upload_exception")
             }
         }
     }
@@ -226,7 +279,7 @@ class AddVehicleActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddVehicleScreen(modifier: Modifier = Modifier, initialVehicle: VehicleModel? = null, onPick: () -> Unit, onSave: (String, String, String, String, String, String) -> Unit, isPickingImage: () -> Boolean = { false }) {
+fun AddVehicleScreen(modifier: Modifier = Modifier, initialVehicle: VehicleModel? = null, previewUri: android.net.Uri? = null, onPick: () -> Unit, onSave: (String, String, String, String, String, String) -> Unit, isPickingImage: () -> Boolean = { false }) {
     var name by remember { mutableStateOf(initialVehicle?.name ?: "") }
     var type by remember { mutableStateOf(initialVehicle?.type ?: "Car") }
     var price by remember { mutableStateOf(if (initialVehicle != null) initialVehicle.pricePerDay.toString() else "") }
@@ -237,6 +290,13 @@ fun AddVehicleScreen(modifier: Modifier = Modifier, initialVehicle: VehicleModel
     val types = listOf("Car", "Bike", "SUV")
 
     Column(modifier = modifier.fillMaxSize().background(Color(0xFFF7F9FC)).padding(16.dp).verticalScroll(rememberScrollState()).imePadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // preview area
+        if (previewUri != null) {
+            AsyncImage(model = previewUri, contentDescription = "Selected image", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+        } else if (!initialVehicle?.imageUrl.isNullOrBlank()) {
+            AsyncImage(model = initialVehicle?.imageUrl, contentDescription = "Existing image", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+        }
+
         OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Vehicle Name") }, modifier = Modifier.fillMaxWidth(), textStyle = TextStyle(color = Color.Black))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -255,9 +315,10 @@ fun AddVehicleScreen(modifier: Modifier = Modifier, initialVehicle: VehicleModel
 
         OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), textStyle = TextStyle(color = Color.Black))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Button(onClick = onPick) { Text(if (isPickingImage()) "Image selected" else "Pick Image") }
-            Button(onClick = { onSave(name, type, price, number, count, desc) }) { Text(if (initialVehicle == null) "Upload Vehicle" else "Update Vehicle") }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onPick, modifier = Modifier.weight(1f)) { Text(if (isPickingImage()) "Image selected" else "Pick Image") }
+            Button(onClick = { onSave(name, type, price, number, count, desc) }, modifier = Modifier.weight(1f)) { Text(if (initialVehicle == null) "Upload Vehicle" else "Update Vehicle") }
         }
 
         Spacer(modifier = Modifier.height(12.dp))

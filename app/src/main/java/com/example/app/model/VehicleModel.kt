@@ -1,6 +1,6 @@
 package com.example.app.model
 
-data class VehicleModel(
+data class VehicleModel @JvmOverloads constructor(
     val id: String = "",
     val vendorId: String = "",
     val name: String = "",
