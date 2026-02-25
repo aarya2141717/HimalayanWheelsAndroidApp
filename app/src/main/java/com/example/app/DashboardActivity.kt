@@ -28,6 +28,8 @@ import com.example.app.ui.theme.AppTheme
 import com.example.app.viewmodel.UserViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 class DashboardActivity : ComponentActivity() {
     private val viewModel: UserViewModel by viewModels()
@@ -37,16 +39,9 @@ class DashboardActivity : ComponentActivity() {
 
         setContent {
             AppTheme {
-                var userName by remember { mutableStateOf("User") }
+                // collect the user name from ViewModel StateFlow
+                val userNameState = viewModel.currentUserName.collectAsState()
                 var vehicles by remember { mutableStateOf(listOf<VehicleModel>()) }
-
-                // Step 1: Fetch username safely
-                LaunchedEffect(Unit) {
-                    viewModel.fetchCurrentUserName { name ->
-                        userName = name
-                        Log.d("DashboardActivity", "Current user name: $userName")
-                    }
-                }
 
                 // Step 2: Listen to vehicles safely
                 val db = FirebaseFirestore.getInstance()
@@ -72,16 +67,14 @@ class DashboardActivity : ComponentActivity() {
                     onDispose { registration.remove() }
                 }
 
-                // Step 3: Safe DashboardScreen
                 DashboardScreen(
-                    userName = userName,
+                    userName = userNameState.value,
                     vehicles = vehicles,
                     onProfileClick = { startActivity(Intent(this, ProfileActivity::class.java)) },
                     onBookingsClick = { startActivity(Intent(this, BookingsActivity::class.java)) },
                     onSavedClick = { startActivity(Intent(this, SavedActivity::class.java)) },
                     onVehicleClick = { vehicle ->
                         val i = Intent(this, VehicleDetailActivity::class.java)
-                        // Use direct properties (no Elvis operators)
                         i.putExtra("vehicleId", vehicle.id)
                         i.putExtra("vehicleName", vehicle.name)
                         i.putExtra("vehicleImageUrl", vehicle.imageUrl)
@@ -105,8 +98,12 @@ fun DashboardScreen(
     onSavedClick: () -> Unit,
     onVehicleClick: (VehicleModel) -> Unit
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
     Scaffold(
-        bottomBar = { DashboardBottomNavBar(onProfileClick, onBookingsClick, onSavedClick) },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        bottomBar = { DashboardBottomNavBar(snackbarHostState, onProfileClick, onBookingsClick, onSavedClick) },
         containerColor = Color(0xFFF7F9FC)
     ) { paddingValues ->
 
@@ -211,15 +208,33 @@ fun VehicleCard(
 }
 
 @Composable
-fun DashboardBottomNavBar(onProfile: () -> Unit, onBookings: () -> Unit, onSaved: () -> Unit) {
+fun DashboardBottomNavBar(snackbarHostState: SnackbarHostState, onProfile: () -> Unit, onBookings: () -> Unit, onSaved: () -> Unit) {
+    val coroutineScope = rememberCoroutineScope()
     Surface(shadowElevation = 6.dp) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            Text(text = "Profile", modifier = Modifier.clickable { onProfile() })
-            Text(text = "Bookings", modifier = Modifier.clickable { onBookings() })
-            Text(text = "Saved", modifier = Modifier.clickable { onSaved() })
+            IconButton(onClick = {
+                onProfile()
+                coroutineScope.launch { snackbarHostState.showSnackbar("Profile opened") }
+            }) {
+                Icon(painter = painterResource(R.drawable.baseline_account_circle_24), contentDescription = "Profile")
+            }
+
+            IconButton(onClick = {
+                onBookings()
+                coroutineScope.launch { snackbarHostState.showSnackbar("Bookings opened") }
+            }) {
+                Icon(painter = painterResource(R.drawable.baseline_calendar_month_24), contentDescription = "Bookings")
+            }
+
+            IconButton(onClick = {
+                onSaved()
+                coroutineScope.launch { snackbarHostState.showSnackbar("Saved opened") }
+            }) {
+                Icon(painter = painterResource(R.drawable.baseline_favorite_24), contentDescription = "Saved")
+            }
         }
     }
 }

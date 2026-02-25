@@ -17,6 +17,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import com.google.firebase.firestore.FirebaseFirestore
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.ContentScale
 
 @OptIn(ExperimentalMaterial3Api::class)
 class VehicleDetailActivity : ComponentActivity() {
@@ -67,6 +71,7 @@ class VehicleDetailActivity : ComponentActivity() {
                 ) { padding ->
                     VehicleDetailScreen(
                         modifier = Modifier.padding(padding),
+                        vehicleId = vehicleId,
                         name = vehicleName,
                         imageUrl = vehicleImageUrl,
                         price = vehiclePrice,
@@ -91,10 +96,50 @@ class VehicleDetailActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VehicleDetailScreen(modifier: Modifier = Modifier, name: String, imageUrl: String, price: Double, description: String, count: Int, bookingStatus: String? = null, onBook: () -> Unit) {
+fun VehicleDetailScreen(
+    modifier: Modifier = Modifier,
+    vehicleId: String,
+    name: String,
+    imageUrl: String,
+    price: Double,
+    description: String,
+    count: Int,
+    bookingStatus: String? = null,
+    onBook: () -> Unit
+) {
+    val db = FirebaseFirestore.getInstance()
+    val user = FirebaseAuth.getInstance().currentUser
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var isSaved by remember { mutableStateOf(false) }
+    var savedDocId by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
+
+    // check saved status
+    LaunchedEffect(vehicleId, user?.uid) {
+        if (user == null) return@LaunchedEffect
+        db.collection("savedVehicles")
+            .whereEqualTo("userId", user.uid)
+            .whereEqualTo("vehicleId", vehicleId)
+            .limit(1)
+            .get()
+            .addOnSuccessListener { snap ->
+                val doc = snap.documents.firstOrNull()
+                if (doc != null) {
+                    isSaved = true
+                    savedDocId = doc.id
+                } else {
+                    isSaved = false
+                    savedDocId = null
+                }
+            }
+            .addOnFailureListener { /* ignore */ }
+    }
+
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         if (imageUrl.isNotBlank()) {
-            AsyncImage(model = imageUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(220.dp), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            AsyncImage(model = imageUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(220.dp), contentScale = ContentScale.Crop)
         } else {
             Image(painter = painterResource(R.drawable.thar), contentDescription = null, modifier = Modifier.fillMaxWidth().height(220.dp))
         }
@@ -113,8 +158,63 @@ fun VehicleDetailScreen(modifier: Modifier = Modifier, name: String, imageUrl: S
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        Button(onClick = onBook, modifier = Modifier.fillMaxWidth(), enabled = count > 0) {
-            Text("Book Now")
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = onBook, modifier = Modifier.weight(1f), enabled = count > 0) {
+                Text("Book Now")
+            }
+
+            // Save / Unsave button
+            if (user != null) {
+                if (isSaved) {
+                    Button(onClick = {
+                        // unsave
+                        if (savedDocId == null) return@Button
+                        saving = true
+                        db.collection("savedVehicles").document(savedDocId!!).delete()
+                            .addOnSuccessListener {
+                                saving = false
+                                isSaved = false
+                                savedDocId = null
+                                coroutineScope.launch { snackbarHostState.showSnackbar("Removed from saved") }
+                            }
+                            .addOnFailureListener { e ->
+                                saving = false
+                                coroutineScope.launch { snackbarHostState.showSnackbar("Remove failed: ${e.message}") }
+                            }
+                    }, modifier = Modifier.width(130.dp)) { Text("Saved") }
+                } else {
+                    Button(onClick = {
+                        // save
+                        saving = true
+                        val map = hashMapOf(
+                            "userId" to user.uid,
+                            "vehicleId" to vehicleId,
+                            "vehicleName" to name,
+                            "pricePerDay" to price,
+                            "imageUrl" to imageUrl,
+                            "createdAt" to com.google.firebase.Timestamp.now()
+                        )
+                        db.collection("savedVehicles").add(map)
+                            .addOnSuccessListener { docRef ->
+                                saving = false
+                                isSaved = true
+                                savedDocId = docRef.id
+                                coroutineScope.launch { snackbarHostState.showSnackbar("Saved") }
+                            }
+                            .addOnFailureListener { e ->
+                                saving = false
+                                coroutineScope.launch { snackbarHostState.showSnackbar("Save failed: ${e.message}") }
+                            }
+                    }, modifier = Modifier.width(130.dp)) { Text("Save") }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // snackbar host for feedback
+        Box(modifier = Modifier.fillMaxWidth()) {
+            SnackbarHost(hostState = snackbarHostState)
         }
     }
 }
