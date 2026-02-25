@@ -3,11 +3,18 @@ package com.example.app.viewmodel
 import androidx.lifecycle.ViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 class UserViewModel : ViewModel() {
 
     private val auth = FirebaseAuth.getInstance()
     private val db = FirebaseFirestore.getInstance()
+
+    // Expose current user name as StateFlow so Compose can collect it and auto-update UI
+    private val _currentUserName = MutableStateFlow("User")
+    val currentUserName: StateFlow<String> get() = _currentUserName
 
     fun login(
         email: String,
@@ -20,6 +27,8 @@ class UserViewModel : ViewModel() {
                 db.collection("users").document(uid).get()
                     .addOnSuccessListener { doc ->
                         val role = doc.getString("role") ?: "USER"
+                        // update current name state
+                        _currentUserName.value = doc.getString("name") ?: "User"
                         callback(true, "Login successful", role)
                     }
                     .addOnFailureListener {
@@ -50,6 +59,8 @@ class UserViewModel : ViewModel() {
 
                 db.collection("users").document(uid).set(userData)
                     .addOnSuccessListener {
+                        // update current name
+                        _currentUserName.value = name
                         callback(true, "Registration successful")
                     }
                     .addOnFailureListener {
@@ -86,6 +97,7 @@ class UserViewModel : ViewModel() {
         db.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
                 val name = doc.getString("name") ?: "User"
+                _currentUserName.value = name
                 callback(name)
             }
             .addOnFailureListener {
@@ -102,8 +114,10 @@ class UserViewModel : ViewModel() {
         }
         val uid = user.uid
         val updates = mapOf("name" to newName)
-        db.collection("users").document(uid).update(updates)
+        // use set with merge to create the document if it does not exist (avoids No document to update)
+        db.collection("users").document(uid).set(updates, SetOptions.merge())
             .addOnSuccessListener {
+                _currentUserName.value = newName
                 callback(true, "Profile updated")
             }
             .addOnFailureListener { e ->
@@ -114,5 +128,6 @@ class UserViewModel : ViewModel() {
     // New helper: logout
     fun logout() {
         auth.signOut()
+        _currentUserName.value = "User"
     }
 }
