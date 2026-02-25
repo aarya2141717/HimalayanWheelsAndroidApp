@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppTheme
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.launch
 
 class AdminDashboardActivity : ComponentActivity() {
@@ -53,12 +54,38 @@ fun AdminDashboardScreen() {
     val db = FirebaseFirestore.getInstance()
     val coroutineScope = rememberCoroutineScope()
 
-    // Listen to pending bookings
+    // Real-time stats
+    var totalVehicles by remember { mutableStateOf(0) }
+    var totalBookings by remember { mutableStateOf(0) }
+    var activeUsers by remember { mutableStateOf(0) }
+    var requestsCount by remember { mutableStateOf(0) }
+
+    // Listen to pending bookings list
     var pendingBookings by remember { mutableStateOf(listOf<Map<String, Any>>()) }
     LaunchedEffect(Unit) {
-        db.collection("bookings").whereEqualTo("status", "PENDING").addSnapshotListener { snap, err ->
+        db.collection("bookings").whereEqualTo("status", "PENDING")
+            .addSnapshotListener { snap, err ->
+                if (err != null) return@addSnapshotListener
+                pendingBookings = snap?.documents?.mapNotNull { it.data?.plus(mapOf("_id" to it.id)) } ?: emptyList()
+                requestsCount = pendingBookings.size
+            }
+
+        // total vehicles
+        db.collection("vehicles").addSnapshotListener { snap, err ->
             if (err != null) return@addSnapshotListener
-            pendingBookings = snap?.documents?.mapNotNull { it.data?.plus(mapOf("_id" to it.id)) } ?: emptyList()
+            totalVehicles = snap?.size() ?: 0
+        }
+
+        // total bookings
+        db.collection("bookings").addSnapshotListener { snap, err ->
+            if (err != null) return@addSnapshotListener
+            totalBookings = snap?.size() ?: 0
+        }
+
+        // active users (assumes a 'users' collection exists)
+        db.collection("users").addSnapshotListener { snap, err ->
+            if (err != null) return@addSnapshotListener
+            activeUsers = snap?.size() ?: 0
         }
     }
 
@@ -89,7 +116,7 @@ fun AdminDashboardScreen() {
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
             // Stats Grid
-            item { StatsGrid() }
+            item { StatsGrid(totalVehicles, totalBookings, activeUsers, requestsCount) }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
@@ -239,15 +266,15 @@ fun AdminTopBar() {
 }
 
 @Composable
-fun StatsGrid() {
+fun StatsGrid(totalVehicles: Int, totalBookings: Int, activeUsers: Int, requestsCount: Int) {
     Column {
         Row(modifier = Modifier.fillMaxWidth()) {
             StatsCard(
                 modifier = Modifier.weight(1f),
                 title = "Total Vehicles",
-                value = "142",
+                value = totalVehicles.toString(),
                 percent = "+12%",
-                iconRes = R.drawable.baseline_car_rental_24, // Replace with your car icon
+                iconRes = R.drawable.baseline_car_rental_24,
                 iconBgColor = Color(0xFFE3F2FD),
                 iconTint = Color(0xFF1565C0),
                 percentColor = Color(0xFF4CAF50)
@@ -256,9 +283,9 @@ fun StatsGrid() {
             StatsCard(
                 modifier = Modifier.weight(1f),
                 title = "Total Bookings",
-                value = "89",
+                value = totalBookings.toString(),
                 percent = "+5%",
-                iconRes = R.drawable.baseline_calendar_month_24, // Replace with calendar icon
+                iconRes = R.drawable.baseline_calendar_month_24,
                 iconBgColor = Color(0xFFF3E5F5),
                 iconTint = Color(0xFF7B1FA2),
                 percentColor = Color(0xFF4CAF50)
@@ -269,9 +296,9 @@ fun StatsGrid() {
             StatsCard(
                 modifier = Modifier.weight(1f),
                 title = "Active Users",
-                value = "1.2k",
+                value = activeUsers.toString(),
                 percent = "",
-                iconRes = R.drawable.baseline_account_circle_24, // Replace with users icon
+                iconRes = R.drawable.baseline_account_circle_24,
                 iconBgColor = Color(0xFFFFF3E0),
                 iconTint = Color(0xFFE65100),
                 percentColor = Color.Transparent
@@ -280,10 +307,10 @@ fun StatsGrid() {
             StatsCard(
                 modifier = Modifier.weight(1f),
                 title = "Requests",
-                value = "5",
-                percent = "5", // Using as a badge count
+                value = requestsCount.toString(),
+                percent = requestsCount.toString(),
                 isBadge = true,
-                iconRes = R.drawable.baseline_visibility_24, // Replace with request/clipboard icon
+                iconRes = R.drawable.baseline_visibility_24,
                 iconBgColor = Color(0xFFFFEBEE),
                 iconTint = Color(0xFFC62828),
                 percentColor = Color(0xFFD32F2F)

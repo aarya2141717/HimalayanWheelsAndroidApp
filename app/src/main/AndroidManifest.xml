@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.app">
 
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -20,27 +21,25 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
         </activity>
 
-        <!-- Splash Activity (NO intent-filter here) -->
-
-
         <!-- Other Activities -->
-        <activity android:name=".SignUpActivity" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".RegistrationActivity" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ForgotPasswordActivity" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".DashboardActivity" />
-        <activity android:name=".CompanyDashboardActivity" />
-        <activity android:name=".AdminDashboardActivity" />
-        <activity android:name=".ProfileActivity" />
-        <activity android:name=".VehicleDetailActivity" />
-        <activity android:name=".BookingActivity" />
-        <activity android:name=".BookingsActivity" />
-        <activity android:name=".SavedActivity" />
-        <activity android:name=".VendorDashboardActivity" />
-        <activity android:name=".AddVehicleActivity" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".TestDashboardActivity" />
+        <activity android:name=".SignUpActivity" android:windowSoftInputMode="adjustResize"/>
+        <activity android:name=".RegistrationActivity" android:windowSoftInputMode="adjustResize"/>
+        <activity android:name=".ForgotPasswordActivity" android:windowSoftInputMode="adjustResize"/>
+        <activity android:name=".DashboardActivity"/>
+        <activity android:name=".CompanyDashboardActivity"/>
+        <activity android:name=".AdminDashboardActivity"/>
+        <activity android:name=".ProfileActivity"/>
+        <activity android:name=".VehicleDetailActivity"/>
+        <activity android:name=".BookingActivity"/>
+        <activity android:name=".BookingsActivity"/>
+        <activity android:name=".SavedActivity"/>
+        <activity android:name=".VendorDashboardActivity"/>
+        <activity android:name=".AddVehicleActivity" android:windowSoftInputMode="adjustResize"/>
+        <activity android:name=".TestDashboardActivity"/>
+        <activity android:name=".EditBookingActivity"/>
+        <activity android:name=".VendorBookingsActivity"/>
 
     </application>
 

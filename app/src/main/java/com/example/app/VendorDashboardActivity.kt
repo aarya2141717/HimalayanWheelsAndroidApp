@@ -91,7 +91,18 @@ fun VendorDashboardScreen(vehicles: List<VehicleModel>, vm: VendorViewModel) {
                 BottomAppBar(containerColor = Color.White) {
                     TextButton(onClick = {}) { Text("View My Vehicles") }
                     Spacer(modifier = Modifier.weight(1f))
-                    TextButton(onClick = {}) { Text("View Bookings") }
+                    TextButton(onClick = {
+                        // Open vendor bookings screen
+                        try {
+                            val intent = Intent(context, VendorBookingsActivity::class.java)
+                            if (context is Activity) context.startActivity(intent) else {
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }
+                        } catch (e: Exception) {
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Unable to open bookings: ${e.localizedMessage}") }
+                        }
+                    }) { Text("View Bookings") }
                     TextButton(onClick = {}) { Text("Earnings") }
                 }
             }

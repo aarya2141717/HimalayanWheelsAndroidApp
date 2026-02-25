@@ -27,6 +27,7 @@ import com.example.app.model.VehicleModel
 import com.example.app.ui.theme.AppTheme
 import com.example.app.viewmodel.VendorViewModel
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
 class CompanyDashboardActivity : ComponentActivity() {
@@ -37,7 +38,7 @@ class CompanyDashboardActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             AppTheme {
-                val companyId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "company-uid-placeholder"
+                val companyId = FirebaseAuth.getInstance().currentUser?.uid ?: "company-uid-placeholder"
                 vm.observeVendor(companyId)
                 val vehicles by vm.vehicles.observeAsState(emptyList())
 
@@ -54,7 +55,17 @@ fun CompanyDashboardScreen(vehicles: List<VehicleModel>, vm: VendorViewModel) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val db = FirebaseFirestore.getInstance()
-    val companyId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val companyId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
+    // company display name
+    var companyName by remember { mutableStateOf("Company") }
+    LaunchedEffect(companyId) {
+        if (companyId.isNotBlank()) {
+            db.collection("users").document(companyId).get().addOnSuccessListener { doc ->
+                companyName = doc.getString("name") ?: "Company"
+            }
+        }
+    }
 
     // Listen to bookings for this vendor
     var pendingBookings by remember { mutableStateOf(listOf<Map<String, Any>>()) }
@@ -71,11 +82,11 @@ fun CompanyDashboardScreen(vehicles: List<VehicleModel>, vm: VendorViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Company Dashboard") },
+                title = { Text("Welcome, $companyName") },
                 actions = {
                     IconButton(onClick = {
                         // logout and go to SignUpActivity clearing backstack
-                        com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                        FirebaseAuth.getInstance().signOut()
                         val i = Intent(context, SignUpActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         }
@@ -217,15 +228,20 @@ fun CompanyDashboardScreen(vehicles: List<VehicleModel>, vm: VendorViewModel) {
                                     coroutineScope.launch {
                                         db.collection("bookings").document(id).update(mapOf("companyApproved" to true))
                                             .addOnSuccessListener {
+                                                coroutineScope.launch { snackbarHostState.showSnackbar("Booking approved") }
                                                 // Check if admin has already approved, finalize if so
                                                 db.collection("bookings").document(id).get().addOnSuccessListener { snap ->
                                                     val adminApproved = snap.getBoolean("adminApproved") ?: false
                                                     val status = snap.getString("status") ?: ""
                                                     if (status == "PENDING" && adminApproved) {
                                                         finalizeBooking(id, snap.getString("vehicleId") ?: "")
+                                                        coroutineScope.launch { snackbarHostState.showSnackbar("Booking confirmed") }
+                                                    } else {
+                                                        coroutineScope.launch { snackbarHostState.showSnackbar("Waiting for admin approval") }
                                                     }
                                                 }
                                             }
+                                            .addOnFailureListener { e -> coroutineScope.launch { snackbarHostState.showSnackbar("Approve failed: ${e.message}") } }
                                     }
                                 }) { Text("Approve") }
 
@@ -233,6 +249,8 @@ fun CompanyDashboardScreen(vehicles: List<VehicleModel>, vm: VendorViewModel) {
                                     // Reject
                                     coroutineScope.launch {
                                         db.collection("bookings").document(id).update(mapOf("companyApproved" to false, "status" to "REJECTED"))
+                                            .addOnSuccessListener { coroutineScope.launch { snackbarHostState.showSnackbar("Booking rejected") } }
+                                            .addOnFailureListener { e -> coroutineScope.launch { snackbarHostState.showSnackbar("Reject failed: ${e.message}") } }
                                     }
                                 }) { Text("Reject") }
                             }
