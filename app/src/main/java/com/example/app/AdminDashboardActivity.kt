@@ -1,5 +1,6 @@
 package com.example.app
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -34,8 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppTheme
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import kotlinx.coroutines.launch
+import com.example.app.model.VehicleModel
+import coil.compose.AsyncImage
 
 class AdminDashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +55,7 @@ fun AdminDashboardScreen() {
     val context = LocalContext.current
     val db = FirebaseFirestore.getInstance()
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Real-time stats
     var totalVehicles by remember { mutableStateOf(0) }
@@ -90,10 +93,16 @@ fun AdminDashboardScreen() {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    context.startActivity(Intent(context, AddProductActivity::class.java))
+                    // Open AddVehicleActivity (admin can add vehicles like vendor)
+                    val intent = Intent(context, AddVehicleActivity::class.java)
+                    if (context is Activity) context.startActivity(intent) else {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    }
                 },
                 containerColor = Color(0xFF2F4CFA),
                 shape = CircleShape
@@ -104,6 +113,23 @@ fun AdminDashboardScreen() {
         bottomBar = { AdminBottomNavBar() },
         containerColor = Color(0xFFF7F9FC)
     ) { paddingValues ->
+        // --- ADDED: listen & render all vehicles for admin management ---
+        var allVehicles by remember { mutableStateOf<List<VehicleModel>>(emptyList()) }
+        LaunchedEffect(Unit) {
+            db.collection("vehicles").addSnapshotListener { snap, err ->
+                if (err != null) return@addSnapshotListener
+                allVehicles = snap?.documents?.mapNotNull { d ->
+                    try {
+                        d.toObject(VehicleModel::class.java)?.copy(id = d.id)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        null
+                    }
+                } ?: emptyList()
+                totalVehicles = allVehicles.size
+            }
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -115,10 +141,69 @@ fun AdminDashboardScreen() {
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // Stats Grid
+            // Stats Grid (number counts)
             item { StatsGrid(totalVehicles, totalBookings, activeUsers, requestsCount) }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
+
+            // Admin-managed Vehicles section (placed below stats and above pending bookings)
+            item {
+                Text("All Vehicles", style = MaterialTheme.typography.titleMedium)
+            }
+
+            if (allVehicles.isEmpty()) {
+                item {
+                    Text("No vehicles available", color = Color.Gray)
+                }
+            } else {
+                items(allVehicles) { v ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (v.imageUrl.isNotBlank()) {
+                                AsyncImage(model = v.imageUrl, contentDescription = null, modifier = Modifier.size(80.dp).clip(CircleShape))
+                            } else {
+                                Image(painter = painterResource(R.drawable.baseline_car_rental_24), contentDescription = null, modifier = Modifier.size(80.dp).clip(CircleShape))
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(v.name, fontSize = 16.sp)
+                                Text("₹${v.pricePerDay}/day", color = Color(0xFF2F4CFA))
+                                Text(if (v.totalCount <= 0) "Unavailable" else "Available", color = if (v.totalCount <= 0) Color.Red else Color.Green)
+                            }
+
+                            Column {
+                                TextButton(onClick = {
+                                    // Edit vehicle
+                                    try {
+                                        val intent = Intent(context, AddVehicleActivity::class.java).apply { putExtra("vehicleId", v.id) }
+                                        if (context is Activity) context.startActivity(intent) else {
+                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            context.startActivity(intent)
+                                        }
+                                    } catch (e: Exception) {
+                                        coroutineScope.launch { snackbarHostState.showSnackbar("Unable to open edit: ${e.localizedMessage}") }
+                                    }
+                                }) { Text("Edit") }
+
+                                TextButton(onClick = {
+                                    coroutineScope.launch {
+                                        val res = snackbarHostState.showSnackbar(message = "Delete ${v.name}?", actionLabel = "Confirm")
+                                        if (res == SnackbarResult.ActionPerformed) {
+                                            db.collection("vehicles").document(v.id).delete()
+                                                .addOnSuccessListener { coroutineScope.launch { snackbarHostState.showSnackbar("Deleted ${v.name}") } }
+                                                .addOnFailureListener { e -> coroutineScope.launch { snackbarHostState.showSnackbar("Delete failed: ${e.message}") } }
+                                        }
+                                    }
+                                }) { Text("Delete") }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(12.dp)) }
 
             // Pending bookings section
             item { SectionHeader(title = "Pending Bookings", actionText = "") }
