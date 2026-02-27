@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -26,7 +27,7 @@ class UserViewModel : ViewModel() {
                 val uid = auth.currentUser!!.uid
                 db.collection("users").document(uid).get()
                     .addOnSuccessListener { doc ->
-                        val role = doc.getString("role") ?: "USER"
+                        val role = doc.getString("role")?.uppercase(Locale.ROOT) ?: "USER"
                         // update current name state
                         _currentUserName.value = doc.getString("name") ?: "User"
                         callback(true, "Login successful", role)
@@ -48,26 +49,46 @@ class UserViewModel : ViewModel() {
         callback: (Boolean, String) -> Unit
     ) {
         auth.createUserWithEmailAndPassword(email, password)
-            .addOnSuccessListener {
-                val uid = auth.currentUser!!.uid
-                val userData = hashMapOf(
-                    "uid" to uid,
-                    "name" to name,
-                    "email" to email,
-                    "role" to role
-                )
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    // Prefer the user object returned by the task rather than re-reading auth.currentUser
+                    val firebaseUser = task.result?.user ?: auth.currentUser
+                    val uid = firebaseUser?.uid
+                    if (uid == null) {
+                        callback(false, "Registration failed: no user id")
+                        return@addOnCompleteListener
+                    }
 
-                db.collection("users").document(uid).set(userData)
-                    .addOnSuccessListener {
-                        // update current name
-                        _currentUserName.value = name
-                        callback(true, "Registration successful")
-                    }
-                    .addOnFailureListener {
-                        callback(false, "User created but Firestore failed")
-                    }
+                    val userData = hashMapOf(
+                        "uid" to uid,
+                        "name" to name,
+                        "email" to email,
+                        "role" to role.uppercase(Locale.ROOT)
+                    )
+
+                    db.collection("users").document(uid).set(userData)
+                        .addOnSuccessListener {
+                            // update current name
+                            _currentUserName.value = name
+                            callback(true, "Registration successful")
+                        }
+                        .addOnFailureListener { e ->
+                            // Firestore write failed — remove the newly created auth user to avoid orphaned auth accounts
+                            // firebaseUser should be signed-in at this point, so deletion is possible
+                            firebaseUser.delete().addOnCompleteListener { delTask ->
+                                if (delTask.isSuccessful) {
+                                    callback(false, "User created but Firestore failed: ${e.message}. Auth account removed.")
+                                } else {
+                                    callback(false, "User created but Firestore failed: ${e.message}. Failed to remove auth account: ${delTask.exception?.message}")
+                                }
+                            }
+                        }
+                } else {
+                    callback(false, task.exception?.message ?: "Registration failed")
+                }
             }
             .addOnFailureListener {
+                // keep the existing behavior for compatibility
                 callback(false, it.message ?: "Registration failed")
             }
     }

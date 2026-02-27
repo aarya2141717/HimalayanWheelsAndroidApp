@@ -32,8 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.IconButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +53,8 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.testTag
+
 
 class SignUpActivity : ComponentActivity() {
 
@@ -84,6 +84,7 @@ class SignUpActivity : ComponentActivity() {
                             return@LoginScreen
                         }
 
+
                         // Use AppConfig admin credentials (editable in local.properties later if desired)
                         // sanitize inputs and stored admin values to avoid formatting mismatches
                         val userEmailSanitized = email.trim().lowercase()
@@ -112,12 +113,7 @@ class SignUpActivity : ComponentActivity() {
                                     "ADMIN" ->
                                         try {
                                             val adminIntent = Intent(this, AdminDashboardActivity::class.java)
-                                            if (adminIntent.resolveActivity(packageManager) != null) {
-                                                startActivity(adminIntent)
-                                            } else {
-                                                Log.e("SignUpActivity", "Admin activity not found in package manager")
-                                                Toast.makeText(this, "Admin Dashboard not available", Toast.LENGTH_LONG).show()
-                                            }
+                                            startActivity(adminIntent)
                                             // do not finish() immediately to allow safe debugging if the target activity crashes
                                         } catch (e: Exception) {
                                             Log.e("SignUpActivity", "Failed to open AdminDashboard", e)
@@ -126,12 +122,7 @@ class SignUpActivity : ComponentActivity() {
                                     "COMPANY" ->
                                         try {
                                             val cIntent = Intent(this, CompanyDashboardActivity::class.java)
-                                            if (cIntent.resolveActivity(packageManager) != null) {
-                                                startActivity(cIntent)
-                                            } else {
-                                                Log.e("SignUpActivity", "Company activity not found in package manager")
-                                                Toast.makeText(this, "Company Dashboard not available", Toast.LENGTH_LONG).show()
-                                            }
+                                            startActivity(cIntent)
                                             // do not finish() immediately
                                         } catch (e: Exception) {
                                             Log.e("SignUpActivity", "Failed to open CompanyDashboard", e)
@@ -140,12 +131,7 @@ class SignUpActivity : ComponentActivity() {
                                     "VENDOR" ->
                                         try {
                                             val vIntent = Intent(this, VendorDashboardActivity::class.java)
-                                            if (vIntent.resolveActivity(packageManager) != null) {
-                                                startActivity(vIntent)
-                                            } else {
-                                                Log.e("SignUpActivity", "Vendor activity not found in package manager")
-                                                Toast.makeText(this, "Vendor Dashboard not available", Toast.LENGTH_LONG).show()
-                                            }
+                                            startActivity(vIntent)
                                             // do not finish() immediately
                                         } catch (e: Exception) {
                                             Log.e("SignUpActivity", "Failed to open VendorDashboard", e)
@@ -156,12 +142,7 @@ class SignUpActivity : ComponentActivity() {
                                             // During debugging we open a safe TestDashboardActivity to verify login flows
                                             val targetCls = if (USE_TEST_DASHBOARD) TestDashboardActivity::class.java else DashboardActivity::class.java
                                             val dIntent = Intent(this, targetCls)
-                                            if (dIntent.resolveActivity(packageManager) != null) {
-                                                startActivity(dIntent)
-                                            } else {
-                                                Log.e("SignUpActivity", "Target dashboard activity not found in package manager")
-                                                Toast.makeText(this, "Dashboard not available", Toast.LENGTH_LONG).show()
-                                            }
+                                            startActivity(dIntent)
                                             // do not finish() immediately so the login screen remains if Dashboard crashes
                                         } catch (e: Exception) {
                                             Log.e("SignUpActivity", "Failed to open Dashboard", e)
@@ -257,7 +238,8 @@ fun LoginScreen(
                 keyboardActions = KeyboardActions(onNext = { passwordFocusRequester.requestFocus() }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(emailFocusRequester),
+                    .focusRequester(emailFocusRequester)
+                    .testTag("emailField"),
                 shape = RoundedCornerShape(12.dp),
                 textStyle = fieldTextStyle
             )
@@ -278,7 +260,8 @@ fun LoginScreen(
                 }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(passwordFocusRequester),
+                    .focusRequester(passwordFocusRequester)
+                    .testTag("passwordField"),
                 shape = RoundedCornerShape(12.dp),
                 textStyle = fieldTextStyle,
                 trailingIcon = {
@@ -304,7 +287,10 @@ fun LoginScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp),
+                        .height(56.dp)
+                        .testTag("loginButton"),
+
+
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors()
                 ) {
